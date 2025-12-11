@@ -78,21 +78,49 @@ Use `samtools` to extract the list of sequences from the original assembly:
 </p>
 </details>
 
-### Run BUSCO
+##### Run BUSCO
+- BUSCO (Simão et al. 2015; Waterhouse et al. 2017) assesses completeness by searching the genome for a selected set of single copy orthologous genes.
+- There are several databases that can be used with BUSCO and they can be downloaded from here: [https://buscos.ezlab.org](https://buscos.ezlab.org). 
+- I used the primary contigs "bHypOws1_hifiasm.bp.p_ctg.fasta.gz" which is a main referecne genome used for most analysis. 
 
-BUSCO (Simão et al. 2015; Waterhouse et al. 2017) assesses completeness by searching the genome for a selected set of single copy orthologous genes. There are several databases that can be used with BUSCO and they can be downloaded from here: [https://buscos.ezlab.org](https://buscos.ezlab.org). 
-
+#### Install the BUSCO
+```bash
+Clone the repository.
+git clone https://gitlab.com/ezlab/busco.git
+cd busco/
+Install using pip from within the cloned directory.
+python -m pip install .
+```
 
 #### Job file: busco_Guam_Rail.job
-- Queue: medium
-- PE: multi-thread
-- Number of CPUs: 10
-- Memory: 6G (6G per CPU, 60G total)
-- Module: `module load bio/busco/5.7.0`
-- Commands:
+```bash
+#!/bin/bash -l
+# To be submitted by: sbatch slurm_job.sh
+#SBATCH --time=200:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --mem=64G
+#SBATCH --partition=batch
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=bistbs@miamioh.edu
+#SBATCH --job-name=BUSCO_Analysis
 
-```
-busco -o Guam_Rail -i path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta -l aves_odb10 -c $NSLOTS -m genome
+##change direcoty
+cd /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/
+
+
+###load the module
+module load hmmer-3.3.2 
+
+##Run the BUSCO command.
+busco \
+  -i /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/bHypOws1_hifiasm.bp.p_ctg.fasta \
+  -l aves_odb10 \
+  -o output \
+  -m genome \
+  -c 24 \
+  --out_path /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/BUSCO_output
+
 ```
 
 ##### Explanation:
@@ -104,31 +132,10 @@ busco -o Guam_Rail -i path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta -l aves_o
 -m: mode (options are genome, transcriptome, proteins)
 
 ```
-
-##### *** IMPORTANT ***
-
-BUSCO doesn't have an option to redirect the output to a different folder. For that reason, we will submit the BUSCO job from the `busco` folder. Thus, make sure that your busco.job file is in your busco folder.
-
-```
-cd ../busco
-qsub busco_Guam_rail.job
-```
-
-**Note about Databases:**
-
-If you do not have internet connection on the node where running the software you can download the database and run the program offline. For instance to download the Mammalia database you can use the command `wget` and extract it.It is important to dowlod and untar the folder on your busco folder. Let's `cd` to the directory `busco` first.
-
-	wget https://busco-data.ezlab.org/v5/data/lineages/aves_odb10.2024-01-08.tar.gz 
-	tar -zxf aves_odb10.2024-01-08.tar.gz 
-
-In this case, the command to run busco will have to change to: 
-
-```
-busco  -o Guam_Rail -i /path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta -l aves_odb10 -c $NSLOTS -m genome --offline --download_path /path/to/datasets
-```
-To Plot the results use the generate_plot.py script provided by BUSCO.
-
-```
+#### Plotting the BUSCO completeness reference genome assembly
+- To Plot the results use the generate_plot.py script provided by BUSCO.
+- I won't use this one
+```bash
 generate_plot.py -wd /scratch/genomics/ariasc/smsc_2024/busco_run/Guam_Rail 
 ```
 
@@ -142,59 +149,100 @@ This will generate a .png file of your BUSCO results, which visually summarizes 
 
 
 ### Run Bloobtools
-
-BlobTools is a command line tool designed for interactive quality assessment of genome assemblies and contaminant detection and filtering.
-
-
+- BlobTools is a command line tool designed for interactive quality assessment of genome assemblies and contaminant detection and filtering.
 #### Preparing files for blobtools
+- First, you need to blast your assembly to know nt databases. For this we will use blastn. 
+- I downloaded the nt data base from NCBI.
+- It is being downloaded in this location which I will use to blast my assembly: /shared/jezkovt_bistbs_shared/BLAST_DB/nt
 
-First, you need to blast your assembly to know nt databases. For this we will use blastn. 
-
-
-#### Job file: blast_Guam_Rail.job
-- Queue: medium
-- PE: multi-thread
-- Number of CPUs: 10
-- Memory: 6G (6G per CPU, 60G total)
-- Module: `module load bio/blast/2.15.0`
-- Commands:
+```bash
+blastn \
+  -db /shared/jezkovt_bistbs_shared/BLAST_DB/nt/nt \
+  -query /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Blobtools/bHypOws1_hifiasm.bp.p_ctg.fasta \
+  -outfmt "6 qseqid staxids bitscore std" \
+  -max_target_seqs 20 \
+  -max_hsps 1 \
+  -evalue 1e-20 \
+  -num_threads 24 \
+  -out Guam_Rail_blast.out
 
 ```
-blastn -db /data/genomics/db/ncbi/db/latest_v4/nt/nt -query /path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta.gz -outfmt "6 qseqid staxids bitscore std" -max_target_seqs 20 -max_hsps 1 -evalue 1e-20 -num_threads $NSLOTS -out Guam_Rail_blast.out
-```
 
-##### Explanation:
-```
--db: ncbi nucleotide database
--query: input file (FASTA)
--outfmt: format of the output file (important to for blobtools) 
+##### Explanation for the blast
+-db: ncbi nucleotide database that I downloaded
+-query: input file (FASTA) which is my reference genome assemby or primary contig.
+-outfmt: format of the output file (important for blobtools) 
 -max_target_seqs: Number of aligned sequences to keep.
 -max_hsps: Maximum number of HSPs (alignments) to keep for any single query-subject pair.
 -num_threads: number of CPUs
 -out: name of the output file
 ```
-
-Second, you need to map raw reads to the genome assembly. We will use minimap2 for this. Minimap2 is a versatile sequence alignment program that aligns DNA or mRNA sequences against reference database. Typical use cases include: (1) mapping PacBio or Oxford Nanopore genomic reads to a reference genome; or (2) aligning Illumina single- or paired-end reads to a reference genome. After mapping the reads we need to convert the output file SAM into a BAM file and sort this file. For this we will use the program samtools. Samtools is a suite of programs for interacting with high-throughput sequencing data. 
+##### Map the raw reads to the genome assembly.
+- Second, you need to map raw reads to the genome assembly.
+- We will use minimap2 for this. Minimap2 is a versatile sequence alignment program that aligns DNA or mRNA sequences against reference database.
+- Typical use cases include: (1) mapping PacBio or Oxford Nanopore genomic reads to a reference genome; or (2) aligning Illumina single- or paired-end reads to a reference genome.
+- After mapping the reads we need to convert the output file SAM into a BAM file and sort this file.
+- For this we will use the program samtools. Samtools is a suite of programs for interacting with high-throughput sequencing data. 
 
 #### Job file: minimap_Guam_Rail.job
-- Queue: medium
-- PE: multi-thread
-- Number of CPUs: 10
-- Memory: 6G (6G per CPU, 60G total)
-- Module: 
-```
+```bash
   module load bio/minimap2
   module load bio/samtools
 ```
-- Commands:
+####command to run minimap2
 
-```
-minimap2 -ax map-hifi -t 20 /data/genomics/workshops/smsc_2024/Guam_rail_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta.gz /data/genomics/workshops/smsc_2024/rawdata/SRR27030659_1_pacbio.fastq | samtools view -b | samtools sort -@20 -O BAM -o Guam_Rail_sorted.bam - && samtools index Guam_Rail_sorted.bam
+```bash
+#!/bin/bash -l
+#SBATCH --time=200:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --mem=64G
+#SBATCH --partition=batch
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=bistbs@miamioh.edu
+#SBATCH --job-name=Mapping_raw_reads_with_reference_genome_assembly
+
+# Change to working directory
+cd /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/
+
+
+module load minimap2 
+module load samtools-1.22.1
+
+
+# Reference genome
+REF="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Blobtools/bHypOws1_hifiasm.bp.p_ctg.fasta"
+
+# Directory with FASTQ files
+FASTQ_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis"
+
+# Output directory for BAMs
+OUTDIR="${FASTQ_DIR}/BAMs"
+mkdir -p "$OUTDIR"
+
+# Loop over samples (assumes _1 and _2 in filenames)
+for R1 in ${FASTQ_DIR}/*_1.fastq*.gz; do
+    SAMPLE=$(basename "$R1" | sed 's/_1.fastq.*//')
+    R2="${FASTQ_DIR}/${SAMPLE}_2.fastq*.gz"
+    OUTBAM="${OUTDIR}/${SAMPLE}_sorted.bam"
+
+    if compgen -G "$R2" > /dev/null; then
+        echo "Mapping $SAMPLE..."
+        minimap2 -ax sr -t 20 "$REF" "$R1" "$R2" 2> "${OUTDIR}/${SAMPLE}_mapping.log" | \
+        samtools view -b | \
+        samtools sort -@ 20 -o "$OUTBAM" -
+        samtools index "$OUTBAM"
+        samtools flagstat "$OUTBAM" > "${OUTDIR}/${SAMPLE}_flagstat.txt"
+    else
+        echo "WARNING: R2 not found for $SAMPLE"
+    fi
+done
+
 ```
 
 ##### Explanation:
 
-```
+```bash
 minimap2
 -ax: preset configuration to map hifi reads to genomes.
 -t: number of threads to use.
@@ -207,26 +255,23 @@ index: index bam file
 ```
 
 #### Creating blobtools database
-
-Now that we have the blast and mapping results we can create the BlobTools database. This can take a few minutes depending on how much coverage you have for your genome assembly.
+- Now that we have the blast and mapping results we can create the BlobTools database.
+- This can take a few minutes depending on how much coverage you have for your genome assembly.
 
 - Queue: medium
 - PE: multi-thread
 - Number of CPUs: 1
 - Memory: 6G (6G per CPU, 6G total)
 - Module: `module load bio/blobtools`
+- module load blobtools if you have blobtools if not install it using wget from github.
 
-
-- Commands:
-
-```
+```bash
 blobtools create -i /path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta -b Guam_Rail_sorted.bam -t /path/to_hits_output/Guam_Rail_blast.out -o Guam_Rail_my_first_blobplot
 
 ```
-
 ##### Explanation:
 
-```
+```bash
 -i: genome assembly (fasta)
 -b: mapped reads to genome assembly (bam)
 -t: hits output file from a search algorith (i.e blastn). hit file is a TSV file which links sequence IDs in a assembly to NCBI TaxIDs, with a given score.
@@ -236,8 +281,8 @@ blobtools create -i /path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta -b Guam_Ra
 
 
 #### blob and cov plots
-
-Once you have a BlobDir database, we can plot the blobplot and the covplot. Since this is not computationally speaking intense, we can use an interactive node to run blobtools plot command.
+- Once you have a BlobDir database, we can plot the blobplot and the covplot.
+- Since this is not computationally speaking intense, we can use an interactive node to run blobtools plot command.
 
 ```
 qrsh
@@ -261,14 +306,15 @@ Please download these files to your machine. Remember that you can use the ffsen
 
 
 ### Run Bloobtools2
-
-Similar to blobtools 1.1, blobtools2 requires an assembly (fasta), blast hit file (blast.out) and a mapping reads file (bam). You can see above on blobtools section how to create those files.
+- Similar to blobtools 1.1, blobtools2 requires an assembly (fasta), blast hit file (blast.out) and a mapping reads file (bam).
+- You can see above on blobtools section how to create those files.
 
 #### Creating blobtools2 data base
+- Now that we have the blast and mapping results we can create the BlobTools2 database.
+- The minimum requirement to create a new database with BlobTools2 is an assembly FASTA file.
+- This runs very fast so we do can use an interactive node.
 
-Now that we have the blast and mapping results we can create the BlobTools2 database. The minimum requirement to create a new database with BlobTools2 is an assembly FASTA file. This runs very fast so we do can use an interactive node.
-
-```
+```bash
 qrsh -pe mthread 3
 module load bio/blobtools/2.6.3 
 blobtools create --fasta /path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta.gz Guam_Rail_blobt_nb
