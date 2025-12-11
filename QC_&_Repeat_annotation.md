@@ -106,20 +106,30 @@ python -m pip install .
 #SBATCH --job-name=BUSCO_Analysis
 
 ##change direcoty
-cd /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/
+cd /localscratch/bistbs/BUSCO
 
 
 ###load the module
-module load hmmer-3.3.2 
+module load hmmer-3.3.2
+# Add tools to PATH
+export PATH=/localscratch/bistbs/BUSCO/bbmap:$PATH
+export PATH=/localscratch/bistbs/BUSCO/miniprot:$PATH
+export PATH=/localscratch/bistbs/BUSCO/ncbi-blast-2.17.0+/bin:$PATH
+
+# Give Java a huge heap for BBTools
+export BBMAP_JVM=256g
+# or for some scripts
+export _JAVA_OPTIONS="-Xmx256g"
 
 ##Run the BUSCO command.
 busco \
-  -i /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/bHypOws1_hifiasm.bp.p_ctg.fasta \
+  -i /localscratch/bistbs/BUSCO/bHypOws1_hifiasm.bp.p_ctg.fasta \
   -l aves_odb10 \
   -o output \
   -m genome \
   -c 24 \
-  --out_path /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/BUSCO_output
+  --out_path /localscratch/bistbs/BUSCO/BUSCO_output \
+  -f
 
 ```
 
