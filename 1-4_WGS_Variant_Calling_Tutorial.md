@@ -1,13 +1,8 @@
-# Dama Gazelle Whole-Genome Resequencing (WGS) Variant Calling Pipeline Tutorial
+# Guam rail hole-Genome Resequencing (WGS) Variant Calling Pipeline Tutorial
 
 **Author:** Bhuwan Singh Bist
 
-**Affiliation:** Jezkova lab
-
-**Date:** 2025-10-03
-
-This tutorial demonstrates a complete workflow for WGS variant calling in the Dama gazelle. The pipeline includes:
-
+This tutorial demonstrates a complete workflow for WGS variant calling in the Guam rail. The pipeline includes:
 1. Quality control (FastQC)
 2. Adapter trimming (Trim Galore + Cutadapt)
 3. Mapping reads to a haplotype-resolved Ruminant Telomere-to-Telomere(T2T)reference genome assembly of Dama gazelle(Nanger dama)
@@ -18,7 +13,7 @@ This tutorial demonstrates a complete workflow for WGS variant calling in the Da
 
 ---
 
-# Dama Gazelle WGS Variant Calling Pipeline
+# Guam rail e WGS Variant Calling Pipeline
 
 This tutorial demonstrates the workflow for whole-genome sequencing (WGS) variant calling in the Dama gazelle. Each step includes the commands in a copyable code block.
 
@@ -27,42 +22,63 @@ This tutorial demonstrates the workflow for whole-genome sequencing (WGS) varian
 ## 1. Quality control using FastQC
 
 ```bash
-#!/bin/bash -l
-#SBATCH --time=240:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=24
-#SBATCH --mem=64G
-#SBATCH --partition=batch
-#SBATCH --mail-type=BEGIN,END
-#SBATCH --mail-user=bistbs@miamioh.edu
-#SBATCH --job-name=Fastqc
+#!/bin/bash
+#SBATCH --job-name=fastqc_guamrail
+#SBATCH --output=fastqc_guamrail.out
+#SBATCH --error=fastqc_guamrail.err
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=40G
+#SBATCH --time=12:00:00
 
 module load fastqc
 
 THREADS=24
-INDIR="/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Dama_gazelle_sequences/dama_fastq"
-OUTDIR="${INDIR}/1_Fastqc"
 
+INDIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis"
+OUTDIR="${INDIR}/fastqc_results"
+
+mkdir -p $OUTDIR
 cd $INDIR
-fastqc *_1.fastq *_2.fastq -o $OUTDIR -t $THREADS
+
+# MATCH YOUR FILE FORMAT: *.fastq-*.gz
+fastqc *.fastq-*.gz -o $OUTDIR -t $THREADS
+
 ```
 
 ## 2. Adapter trimming with Trim Galore
 
 ```bash
+#!/bin/bash
+#SBATCH --job-name=trimgalore_guamrail
+#SBATCH --output=trimgalore_guamrail.out
+#SBATCH --error=trimgalore_guamrail.err
+#SBATCH --cpus-per-task=14
+#SBATCH --mem=50G
+#SBATCH --time=200:00:00
+
+# Load Trim Galore module
 module load trimgalore-0.6.7
-# Ensure cutadapt v5.1 is available
 
 THREADS=24
-INDIR="/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Dama_gazelle_sequences/dama_fastq"
-OUTDIR="${INDIR}/2_Adapter_trimming"
+
+# Input directory
+INDIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis"
+
+# Output directory
+OUTDIR="${INDIR}/trimmed_fastq"
+mkdir -p $OUTDIR
 
 cd $INDIR
 
-for R1 in *_1.fastq; do
-    SAMPLE=${R1%_1.fastq}
-    R2="${SAMPLE}_2.fastq"
+# Loop through R1 files
+for R1 in *_1.fastq-*.gz; do
+    # Extract sample name
+    SAMPLE=${R1%%_1.fastq-*}
+    R2="${SAMPLE}_2.fastq-*.gz"
+
     echo "Processing sample: $SAMPLE"
+    
+    # Run Trim Galore in paired-end mode
     trim_galore --paired --cores $THREADS --output_dir $OUTDIR $R1 $R2
 done
 ```
