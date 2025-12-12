@@ -50,58 +50,68 @@ fastqc *.fastq-*.gz -o $OUTDIR -t $THREADS
 ```bash
 #!/bin/bash
 #SBATCH --job-name=trimgalore_guamrail
-#SBATCH --output=trimgalore_guamrail.out
-#SBATCH --error=trimgalore_guamrail.err
-#SBATCH --cpus-per-task=14
+#SBATCH --output=trimgalore_guamrail_%A_%a.out
+#SBATCH --error=trimgalore_guamrail_%A_%a.err
+#SBATCH --cpus-per-task=8
 #SBATCH --mem=50G
 #SBATCH --time=200:00:00
+#SBATCH --array=1-4   # Number of samples in the list
 
-# Load Trim Galore module
 module load trimgalore-0.6.7
 
-THREADS=24
-
-# Input directory
+THREADS=8
 INDIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis"
-
-# Output directory
 OUTDIR="${INDIR}/trimmed_fastq"
 mkdir -p $OUTDIR
 
 cd $INDIR
 
-# Loop through R1 files
-for R1 in *_1.fastq-*.gz; do
-    # Extract sample name
-    SAMPLE=${R1%%_1.fastq-*}
-    R2="${SAMPLE}_2.fastq-*.gz"
+# List of all sample prefixes
+SAMPLES=("FMNH390989" "HOW_N23-0063" "HOW_N23-0568" "KSW5478")
 
-    echo "Processing sample: $SAMPLE"
-    
-    # Run Trim Galore in paired-end mode
-    trim_galore --paired --cores $THREADS --output_dir $OUTDIR $R1 $R2
-done
+# Pick the sample for this array task
+SAMPLE=${SAMPLES[$SLURM_ARRAY_TASK_ID-1]}
+
+# Match R1 and R2 files with any trailing number
+R1=$(ls ${SAMPLE}_1.fastq-*.gz)
+R2=$(ls ${SAMPLE}_2.fastq-*.gz)
+
+echo "Processing sample: $SAMPLE"
+echo "R1 file: $R1"
+echo "R2 file: $R2"
+
+# Run Trim Galore in paired-end mode
+trim_galore --paired --cores $THREADS --output_dir $OUTDIR $R1 $R2
+
 ```
 
 ## 3a. Index the reference
 
 ```bash
-cd /shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Dama_gazelle_sequences/dama_fastq/3_Indexing/
-
+- Change to your indexing directory
+- Load required modules
 module load samtools-1.22.1
-module load bwa-mem
 module load bwa-0.7.17
 
-REFERENCE=/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Dama_gazelle_sequences/dama_fastq/3_Indexing/Dama_gazelle_hifiasm-ULONT_primary.fasta
+cd /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Indexing_reference_genome_assembly/
 
+- Set path to your reference genome assembly
+REFERENCE=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Indexing_reference_genome_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta
+
+- Index reference genome with samtools (creates .fai file)
 samtools faidx $REFERENCE
+
+- Index reference genome with bwa (creates .bwt, .pac, .ann, .amb, .sa files)
 bwa index $REFERENCE
+
+echo "Indexing of $REFERENCE completed!"
+
 ```
 
 ## 3b. Align reads and process BAMs
 
 ```bash
-# Change directory to where the T2T reference is stored.
+# Change directory to where the Guam rail reference is stored.
 cd /scratch/bistbs/   
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
