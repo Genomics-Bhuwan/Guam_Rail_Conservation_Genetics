@@ -164,6 +164,7 @@ This will generate a .png file of your BUSCO results, which visually summarizes 
 - First, you need to blast your assembly to know nt databases. For this we will use blastn. 
 - I downloaded the nt data base from NCBI.
 - It is being downloaded in this location which I will use to blast my assembly: /shared/jezkovt_bistbs_shared/BLAST_DB/nt
+- Make sure your blatn is loaded or you have installed it properly. It is so much important.
 
 ```bash
 blastn \
@@ -174,9 +175,7 @@ blastn \
   -max_hsps 1 \
   -evalue 1e-20 \
   -num_threads 24 \
-  -out Guam_Rail_blast.out
-
-```
+  -out /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Blobtools/Guam_Rail_blast.out
 
 ##### Explanation for the blast
 -db: ncbi nucleotide database that I downloaded
@@ -194,13 +193,6 @@ blastn \
 - After mapping the reads we need to convert the output file SAM into a BAM file and sort this file.
 - For this we will use the program samtools. Samtools is a suite of programs for interacting with high-throughput sequencing data. 
 
-#### Job file: minimap_Guam_Rail.job
-```bash
-  module load bio/minimap2
-  module load bio/samtools
-```
-####command to run minimap2
-
 ```bash
 #!/bin/bash -l
 #SBATCH --time=200:00:00
@@ -210,43 +202,51 @@ blastn \
 #SBATCH --partition=batch
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=bistbs@miamioh.edu
-#SBATCH --job-name=Mapping_raw_reads_with_reference_genome_assembly
+#SBATCH --job-name=Mapping_4_samples_parallel
 
 # Change to working directory
-cd /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/BUSCO/
+cd /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis
 
-
-module load minimap2 
+module load minimap2
 module load samtools-1.22.1
 
-
 # Reference genome
-REF="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Blobtools/bHypOws1_hifiasm.bp.p_ctg.fasta"
+REF="Blobtools/bHypOws1_hifiasm.bp.p_ctg.fasta"
 
-# Directory with FASTQ files
-FASTQ_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis"
-
-# Output directory for BAMs
-OUTDIR="${FASTQ_DIR}/BAMs"
+# Output directory
+OUTDIR="Mapping"
 mkdir -p "$OUTDIR"
 
-# Loop over samples (assumes _1 and _2 in filenames)
-for R1 in ${FASTQ_DIR}/*_1.fastq*.gz; do
-    SAMPLE=$(basename "$R1" | sed 's/_1.fastq.*//')
-    R2="${FASTQ_DIR}/${SAMPLE}_2.fastq*.gz"
-    OUTBAM="${OUTDIR}/${SAMPLE}_sorted.bam"
+# Array of samples
+declare -A SAMPLES
+SAMPLES["FMNH390989"]="FMNH390989_1.fastq-003.gz FMNH390989_2.fastq-002.gz"
+SAMPLES["HOW_N23-0063"]="HOW_N23-0063_1.fastq-001.gz HOW_N23-0063_2.fastq-002.gz"
+SAMPLES["HOW_N23-0568"]="HOW_N23-0568_1.fastq-004.gz HOW_N23-0568_2.fastq-005.gz"
+SAMPLES["KSW5478"]="KSW5478_1.fastq-004.gz KSW5478_2.fastq-001.gz"
 
-    if compgen -G "$R2" > /dev/null; then
-        echo "Mapping $SAMPLE..."
-        minimap2 -ax sr -t 20 "$REF" "$R1" "$R2" 2> "${OUTDIR}/${SAMPLE}_mapping.log" | \
+# Number of threads per sample
+THREADS=6
+
+# Loop over samples and run mapping in parallel
+for SAMPLE in "${!SAMPLES[@]}"; do
+    R1=$(echo ${SAMPLES[$SAMPLE]} | awk '{print $1}')
+    R2=$(echo ${SAMPLES[$SAMPLE]} | awk '{print $2}')
+    OUTBAM="${OUTDIR}/${SAMPLE}_sorted.bam"
+    LOG="${OUTDIR}/${SAMPLE}_mapping.log"
+    FLAGSTAT="${OUTDIR}/${SAMPLE}_flagstat.txt"
+
+    echo "Mapping $SAMPLE..."
+    minimap2 -ax sr -t $THREADS "$REF" "$R1" "$R2" 2> "$LOG" | \
         samtools view -b | \
-        samtools sort -@ 20 -o "$OUTBAM" -
-        samtools index "$OUTBAM"
-        samtools flagstat "$OUTBAM" > "${OUTDIR}/${SAMPLE}_flagstat.txt"
-    else
-        echo "WARNING: R2 not found for $SAMPLE"
-    fi
+        samtools sort -@ $THREADS -o "$OUTBAM" -
+    samtools index "$OUTBAM"
+    samtools flagstat "$OUTBAM" > "$FLAGSTAT" &
 done
+
+# Wait for all background processes to finish
+wait
+
+echo "All samples mapping finished."
 
 ```
 
