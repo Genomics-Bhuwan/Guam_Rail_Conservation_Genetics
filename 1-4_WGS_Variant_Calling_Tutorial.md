@@ -108,142 +108,67 @@ echo "Indexing of $REFERENCE completed!"
 
 ```
 
-## 3b. Align reads and process BAMs
+
+## 3b. Align reads and process BAMs using BWA-MEM
 
 ```bash
-# Change directory to where the Guam rail reference is stored.
-cd /scratch/bistbs/   
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-# Load required modules                     #
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-module load samtools-1.22.1
-module load bwa-mem
-module load bwa-0.7.17 
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-# T2T consertium generated reference assembly#
-# Indexing with samtools and BWA             #
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-
-REFERENCE=/scratch/bistbs/Dama_gazelle_hifiasm-ULONT_primary.fasta
-
-# Index with samtools (for downstream use)
-samtools faidx $REFERENCE
-
-# Index with BWA (for mapping)
-bwa index $REFERENCE
-```
-## 3C. Align reads and process BAMs using BWA-MEM
-
-```bash
-# Change directory to where the T2T reference is stored.
-cd /scratch/bistbs/  
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-# Load required modules                     #
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-module load samtools-1.22.1
-module load bwa-mem
-module load bwa-0.7.17 
-
-# Directories
-INPUT_DIR=/scratch/bistbs/
-OUTPUT_DIR=/scratch/bistbs/4_Aligning_BWA/Alignment_output
-REFERENCE=/scratch/bistbs/Dama_gazelle_hifiasm-ULONT_primary.fasta
-
-# Make output directory if it doesn't exist
-mkdir -p $OUTPUT_DIR
-
-# Number of threads (matches ntasks-per-node)
-THREADS=24
-
-# Loop through all paired-end files
-for R1 in $INPUT_DIR/*_1_val_1.fq; do
-    BASE=$(basename $R1 _1_val_1.fq)
-    R2="${INPUT_DIR}/${BASE}_2_val_2.fq"
-    
-    echo "Processing sample: $BASE"
-    echo "Read1: $R1"
-    echo "Read2: $R2"
-    
-# Align reads with BWA-MEM and output BAM (mapped only) and Process and filter unmapped reads with samtools
-#bF 4-binary format and remove reads that are 4. 4 means reads are unmapped.
-    bwa mem -t $THREADS $REFERENCE $R1 $R2 \
-        | samtools view -bF 4 - > $OUTPUT_DIR/${BASE}_mapped.bam
-done
-```    
-## 3d. Sort the mapped SAM files
-```bash
-#!/bin/bash -l
-#SBATCH --job-name=Sort_SAM
-#SBATCH --time=300:00:00
-#SBATCH --nodes=1
+# Change directory to where the reference is stored.
+#!/bin/bash
+#SBATCH --job-name=align_BWA_array
+#SBATCH --output=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Alignment_%A_%a.log
+#SBATCH --array=0-3                  # Array job for 4 samples (0,1,2,3)
 #SBATCH --ntasks=1
+#SBATCH --cpus-per-task=14
+#SBATCH --time=12:00:00
 #SBATCH --mem=64G
 #SBATCH --partition=batch
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=bistbs@miamioh.edu
-#SBATCH --output=/scratch/bistbs_new/4_aligning_with_BWA_Mem_Final_1/logs/SortSAM_%A_%a.out
-#SBATCH --error=/scratch/bistbs_new/4_aligning_with_BWA_Mem_Final_1/logs/SortSAM_%A_%a.err
-#SBATCH --array=1-5
 
-# Load Java
-module load java-20
+# load the modules.
+module load samtools-1.22.1
+module load bwa-0.7.17
 
-# Paths
-PICARD_JAR="/scratch/bistbs_new/4_aligning_with_BWA_Mem_Final_1/picard.jar"
-INPUT_DIR="/scratch/bistbs_new/4_aligning_with_BWA_Mem_Final_1"
-OUTPUT_DIR="${INPUT_DIR}/Sorted_BAMs"
-SCRATCH="/scratch/bistbs_new/tmp_sortbam"
-LOG_DIR="${INPUT_DIR}/logs"
+# Directories for the files.
+INPUT_DIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/trimmed_fastq
+OUTPUT_DIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem
+REFERENCE=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Indexing_reference_genome_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta
 
-# Create directories (must exist before job submission)
-mkdir -p "$OUTPUT_DIR" "$SCRATCH" "$LOG_DIR"
+mkdir -p $OUTPUT_DIR
 
-# List all BAM files
-bam_files=($(ls -1 "${INPUT_DIR}"/*mapped.bam))
-NUM_BAMS=${#bam_files[@]}
+# Define the sample list
 
-# Check array index
-if [ $SLURM_ARRAY_TASK_ID -gt $NUM_BAMS ] || [ $SLURM_ARRAY_TASK_ID -lt 1 ]; then
-    echo "❌ SLURM_ARRAY_TASK_ID ${SLURM_ARRAY_TASK_ID} is out of range (1-$NUM_BAMS)"
-    exit 1
-fi
+SAMPLES=(
+"FMNH390989_1.fastq-003.gz_val_1.fq.gz FMNH390989_2.fastq-002.gz_val_2.fq.gz FMNH390989"
+"HOW_N23-0063_1.fastq-001.gz_val_1.fq.gz HOW_N23-0063_2.fastq-002.gz_val_2.fq.gz HOW_N23-0063"
+"HOW_N23-0568_1.fastq-004.gz_val_1.fq.gz HOW_N23-0568_2.fastq-005.gz_val_2.fq.gz HOW_N23-0568"
+"KSW5478_1.fastq-004.gz_val_1.fq.gz KSW5478_2.fastq-001.gz_val_2.fq.gz KSW5478"
+)
 
-# Pick the BAM for this task
-this_bam="${bam_files[$((SLURM_ARRAY_TASK_ID-1))]}"
-base=$(basename "$this_bam" .bam)
+# Select the sample for this array job.
+SAMPLE_PAIR=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
+R1=$(echo $SAMPLE_PAIR | cut -d' ' -f1)
+R2=$(echo $SAMPLE_PAIR | cut -d' ' -f2)
+BASE=$(echo $SAMPLE_PAIR | cut -d' ' -f3)
 
-# Unique TMP per task
-TASK_TMP="${SCRATCH}/job_${SLURM_ARRAY_JOB_ID}_task_${SLURM_ARRAY_TASK_ID}"
-mkdir -p "$TASK_TMP"
+echo "Starting alignment for sample: $BASE"
+echo "Read1: $INPUT_DIR/$R1"
+echo "Read2: $INPUT_DIR/$R2"
 
-echo "📂 Processing BAM: $this_bam"
-echo "🏷 Output BAM: ${OUTPUT_DIR}/${base}_sorted.bam"
-echo "🖥 Host: $HOSTNAME"
-echo "🗂 TMP_DIR: $TASK_TMP"
+# Align the reads with BWA-MEM
+# Sort and Index the BAM.
 
-# Run Picard SortSam
-java -Xmx120g -jar "$PICARD_JAR" SortSam \
-    I="$this_bam" \
-    O="${OUTPUT_DIR}/${base}_sorted.bam" \
-    SORT_ORDER=coordinate \
-    CREATE_INDEX=true \
-    VALIDATION_STRINGENCY=SILENT \
-    TMP_DIR="$TASK_TMP"
+bwa mem -t $SLURM_CPUS_PER_TASK $REFERENCE $INPUT_DIR/$R1 $INPUT_DIR/$R2 \
+    | samtools view -bF 4 - \
+    | samtools sort -@ $SLURM_CPUS_PER_TASK -o $OUTPUT_DIR/${BASE}_mapped_sorted.bam
 
-# Check success
-if [ $? -eq 0 ]; then
-    echo "✅ Finished sorting ${base}.bam"
-else
-    echo "❌ Error sorting ${base}.bam"
-    exit 1
-fi
+## Index the sorted BAM
+samtools index $OUTPUT_DIR/${BASE}_mapped_sorted.bam
+
+echo "Finished alignment and indexing for $BASE"
 
 ```
+``
 
-## 4. Add or Replace Groups
+##### 4. Add or Replace Groups
 
 ```bash
 #!/bin/bash -l
