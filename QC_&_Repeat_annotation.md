@@ -163,9 +163,21 @@ This will generate a .png file of your BUSCO results, which visually summarizes 
 #### Preparing files for blobtools
 - First, you need to blast your assembly to know nt databases. For this we will use blastn. 
 - I downloaded the nt data base from NCBI.
-- It is being downloaded in this location which I will use to blast my assembly: /shared/jezkovt_bistbs_shared/BLAST_DB/nt
+- It is being downloaded in this location which I will use to blast my assembly: /localscratch/jezkovt_bistbs/BLAST_DB/nt
 - Make sure your blatn is loaded or you have installed it properly. It is so much important.
+#### First I am making the BLAST database with output "nt"
+```bash
+cd /shared/jezkovt_bistbs_shared/BLAST_DB/nt/
 
+for f in nt.*.tar.gz; do
+    tar -xvzf "$f"
+done
+
+# Make the BLAST database
+# Others are using driectly from blastn. You can try with makeblastdb or directly to from blastn.
+makeblastdb -in nt -dbtype nucl -parse_seqids -out nt
+```
+#### Once the database is made, run using blastn to get the output of "Guam_Rail_blast.out".
 ```bash
 blastn \
   -db /shared/jezkovt_bistbs_shared/BLAST_DB/nt/nt \
@@ -176,7 +188,7 @@ blastn \
   -evalue 1e-20 \
   -num_threads 24 \
   -out /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Blobtools/Guam_Rail_blast.out
-
+```
 ##### Explanation for the blast
 -db: ncbi nucleotide database that I downloaded
 -query: input file (FASTA) which is my reference genome assemby or primary contig.
