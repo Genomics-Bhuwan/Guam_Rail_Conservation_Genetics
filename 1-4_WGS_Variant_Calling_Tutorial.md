@@ -243,4 +243,63 @@ samtools index "${OUTPUT_DIR}/${base}_RG.bam"
 echo " Finished adding read groups to ${base}.bam"
 
 ```
+#### 5. Combine all the BAMs together
+```bash
+java -Xmx90G -jar /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/picard.jar MergeSamFiles \
+    I=FMNH390989_RG.bam \
+    I=HOW_N23-0063_RG.bam \
+    I=HOW_N23-0568_RG.bam \
+    I=KSW5478_RG.bam \
+    O=Guam_Rail_merged.bam \
+    USE_THREADING=true \
+    CREATE_INDEX=true
+```
+
+#### 6. Remove the Duplicates from the combined BAMs.
+
+```bash
+#!/bin/bash -l
+#SBATCH --job-name=MarkDuplicates
+#SBATCH --time=48:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --mem=120G
+#SBATCH --partition=batch
+#SBATCH --mail-type=BEGIN,END,FAIL
+#SBATCH --mail-user=bistbs@miamioh.edu
+#SBATCH --output=logs/MarkDup_%A.out
+#SBATCH --error=logs/MarkDup_%A.err
+
+# Load the java
+module load java-20
+
+PICARD_JAR="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/picard.jar"
+INPUT_BAM="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/all_samples_merged.bam"
+OUTPUT_DIR="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/8_MarkDuplicates"
+SCRATCH="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/tmp_MarkDuplicates"
+
+# Create directories if missing
+mkdir -p "$OUTPUT_DIR" "$SCRATCH" logs
+
+# Output files
+MARKED_BAM="${OUTPUT_DIR}/all_samples_merged_rmdup.bam"
+METRICS_FILE="${OUTPUT_DIR}/all_samples_merged_rmdup.metrics"
+
+# Run the Picard MarkDuplicates tool
+echo " Running MarkDuplicates on: $INPUT_BAM ..."
+java -Xmx100g -jar "$PICARD_JAR" MarkDuplicates \
+    I="$INPUT_BAM" \
+    O="$MARKED_BAM" \
+    METRICS_FILE="$METRICS_FILE" \
+    ASSUME_SORTED=true \
+    REMOVE_DUPLICATES=true \
+    VALIDATION_STRINGENCY=SILENT \
+    TMP_DIR="$SCRATCH" \
+    MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP=50000 \
+    MAX_RECORDS_IN_RAM=50000 \
+    CREATE_INDEX=true
+
+echo " Finished MarkDuplicates"
+echo "Output written to: $MARKED_BAM"
+
 ---
