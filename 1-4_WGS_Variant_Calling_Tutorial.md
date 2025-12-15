@@ -1,4 +1,4 @@
-# Guam rail hole-Genome Resequencing (WGS) Variant Calling Pipeline Tutorial
+# Guam rail Whole-Genome Resequencing (WGS) Variant Calling Pipeline Tutorial
 
 **Author:** Bhuwan Singh Bist
 
@@ -8,8 +8,6 @@ This tutorial demonstrates a complete workflow for WGS variant calling in the Gu
 3. Mapping reads to a haplotype-resolved Ruminant Telomere-to-Telomere(T2T)reference genome assembly of Dama gazelle(Nanger dama)
 4. BAM processing (Picard & Samtools)
 5. Variant calling and filtering (GATK & VCFtools)
-
-> **Note:** All code blocks are for **demonstration purposes only** and are not executed in this document.
 
 ---
 
