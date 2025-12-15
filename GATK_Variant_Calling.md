@@ -14,7 +14,7 @@ Designed to analyze human genetic data and all its pipelines are optimized for t
 ###### Since, my deduplicated bam file consists of four samples. I want to know the name of the samples.
 
 ```bash
-samtools view -H all_samples_merged_rmdup.bam | grep '^@RG' | awk '{for(i=1;i<=NF;i++) if($i ~ /^SM:/) print $i}' | sed 's/SM://'
+samtools view -H /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/Guam_Rail_merged_rmdup.bam | grep '^@RG' | awk '{for(i=1;i<=NF;i++) if($i ~ /^SM:/) print $i}' | sed 's/SM://'
 ```
 
 ### Run the batch script 
@@ -43,9 +43,9 @@ module load samtools-1.22.1
 # -------------------------------
 # Input/output paths
 # -------------------------------
-BAM=/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/8_MarkDuplicates/all_samples_merged_rmdup.bam
-REFERENCE=/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/8_MarkDuplicates/Dama_gazelle_hifiasm-ULONT_primary.fasta
-GVCF_DIR=/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/8_MarkDuplicates/GVCFs
+BAM=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/Guam_Rail_merged_rmdup.bam
+REFERENCE=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/bHypOws1_hifiasm.bp.p_ctg.fasta
+GVCF_DIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs
 
 mkdir -p $GVCF_DIR
 
