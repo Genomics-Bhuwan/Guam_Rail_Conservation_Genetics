@@ -270,23 +270,32 @@ java -Xmx90G -jar /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Fin
 #SBATCH --output=logs/MarkDup_%A.out
 #SBATCH --error=logs/MarkDup_%A.err
 
-# Load the java
+# Load Java
 module load java-20
 
-PICARD_JAR="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/picard.jar"
-INPUT_BAM="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/all_samples_merged.bam"
-OUTPUT_DIR="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/8_MarkDuplicates"
-SCRATCH="/localscratch/bistbs/4_aligning_with_BWA_Mem_Final_1/5_Sorted_BAMs/6_ReadGroups/7_MergeSam/tmp_MarkDuplicates"
+# Picard JAR
+PICARD_JAR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/picard.jar"
 
-# Create directories if missing
-mkdir -p "$OUTPUT_DIR" "$SCRATCH" logs
+# Input BAM
+INPUT_BAM="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/Guam_Rail_merged.bam"
+
+# Output directory
+OUTPUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM"
+
+# Temporary directory (INSIDE shared, will be removed)
+TMP_DIR="${OUTPUT_DIR}/tmp_MarkDuplicates"
+
+# Create directories
+mkdir -p "$OUTPUT_DIR" "$TMP_DIR" logs
 
 # Output files
-MARKED_BAM="${OUTPUT_DIR}/all_samples_merged_rmdup.bam"
-METRICS_FILE="${OUTPUT_DIR}/all_samples_merged_rmdup.metrics"
+MARKED_BAM="${OUTPUT_DIR}/Guam_Rail_merged_rmdup.bam"
+METRICS_FILE="${OUTPUT_DIR}/Guam_Rail_merged_rmdup.metrics"
 
-# Run the Picard MarkDuplicates tool
-echo " Running MarkDuplicates on: $INPUT_BAM ..."
+echo "Running Picard MarkDuplicates"
+echo "Input BAM : $INPUT_BAM"
+echo "Output BAM: $MARKED_BAM"
+
 java -Xmx100g -jar "$PICARD_JAR" MarkDuplicates \
     I="$INPUT_BAM" \
     O="$MARKED_BAM" \
@@ -294,12 +303,16 @@ java -Xmx100g -jar "$PICARD_JAR" MarkDuplicates \
     ASSUME_SORTED=true \
     REMOVE_DUPLICATES=true \
     VALIDATION_STRINGENCY=SILENT \
-    TMP_DIR="$SCRATCH" \
+    TMP_DIR="$TMP_DIR" \
     MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP=50000 \
     MAX_RECORDS_IN_RAM=50000 \
     CREATE_INDEX=true
 
-echo " Finished MarkDuplicates"
-echo "Output written to: $MARKED_BAM"
+echo "MarkDuplicates finished"
+
+# REMOVE temporary directory
+rm -rf "$TMP_DIR"
+echo "Temporary directory removed"
+```
 
 ---
