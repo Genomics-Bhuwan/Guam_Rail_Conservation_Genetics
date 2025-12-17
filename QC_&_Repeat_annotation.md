@@ -397,12 +397,45 @@ The cool thing about this is that you can interact with the results and visualiz
 * Are there any contamination?
 * if yes, what taxa are contaminant of your assembly?
 
-### Kmer-based assembly evaluation with Merqury and Meryl
 
-First, you create a read kmer database from the HiFi, ONT or reads used for the base assembly using meryl. We will be doing two examples one on the Ara ambiguus haplotype-resolved assembly and the other on our primary Guam Rail assembly.
-
+#### Kmer-based assembly evaluation with Merqury and Meryl
+- First, you create a read kmer database from the HiFi, ONT or reads used for the base assembly using meryl.
+- We will be doing two examples one on the Ara ambiguus haplotype-resolved assembly and the other on our primary Guam Rail assembly.
+- install the Merqury and Mery from the github.
+#### A. Build a k-mer database from reads from the exact same file which was used for generating the reference genome assembly.
+- Run this to combine both paired-end reads.
+-  This will create FMNH390989.meryl — a k-mer database from your reads as an output.
+```bash
+meryl count k=21 output FMNH390989.meryl [ FMNH390989_1.fastq-003.gz FMNH390989_2.fastq-002.gz ]
 ```
-qrsh -pe mthread 4
+#### B. Prepare my assemblies.
+---
+- bHypOws1_hifiasm.bp.p_ctg.fasta        # Primary assembly
+- bHypOws1_hifiasm.bp.hap1.p_ctg.fasta   # Haplotype 1
+- bHypOws1_hifiasm.bp.hap2.p_ctg.fasta   # Haplotype 2
+---
+#### C. Build a k-mer database for the assembly
+- This will give use the output of bHypOws1.meryl — a k-mer database from your assembled contigs.
+```bash
+meryl count k=21 output bHypOws1.meryl bHypOws1_hifiasm.bp.p_ctg.fasta
+```
+#### D. Compute the unique k-mers in the assembly vs. reads.
+- This extracts k-mers present in the assembly but not in the reads (assembly-specific k-mers).
+```bash
+meryl difference output bHypOws1_unique.meryl bHypOws1.meryl FMNH390989.meryl
+```
+#### E. Compute the shared k-mers as well.
+```bash
+meryl intersect output bHypOws1_shared.meryl bHypOws1.meryl FMNH390989.meryl
+```
+#### F. Run the Mequry for assembly evaluation
+- Assuming merqury is executable in your path (from your previous setup):
+```bash
+merqury.sh FMNH390989.meryl bHypOws1_hifiasm.bp.p_ctg.fasta merqury_output
+```
+
+
+
 module load bioinformatics/merqury/1.3
 sh $MERQURY/best_k.sh 120000000
 
@@ -411,42 +444,21 @@ meryl count k=21 count /data/genomics/workshops/smsc_2024/rawdata/SRR27030659_1_
 merqury.sh bHypOws1.meryl bHypOws1_hifiasm.bp.p_ctg.fasta bHypOws1_primary
 ```
 
-```
-qrsh -pe mthread 4
-module load bioinformatics/merqury/1.3
-sh $MERQURY/best_k.sh 1200000000
-
-meryl count k=21 count Aambiguus_duplex.fastq.gz output Aambiguus_duplex.meryl
-```
-
-Second, you run merqury.sh using the following commands below:
-
-```
-merqury.sh Aambiggus_duplex.meryl bAraAmb1.hic.hap1.p_ctg.fasta bAraAmb1.hic.hap2.p_ctg.fasta bAraAmb1_merqury
-```
-
-Now, lets ruu this on our Guam Rail HiFiasm primary assembly with the genome size estimated from Genomescope.
-
-```
-qrsh -pe mthread 4
-module load bioinformatics/merqury
-sh $MERQURY/best_k.sh ....
-
-meryl count k=21 count SRR_1.fastq.gz output bHypOWs1.meryl
-
-merqury.sh bHypOws1.meryl bHypOws1_hifiasm.bp.p_ctg.fasta bHypOws1_primary
-```
-
 ### Masking and annotating repetitive elements with Repeatmodeler and RepeatMasker
 
-Repeatmodeler is a repeat-identifying software that can provide a list of repeat family sequences to mask repeats in a genome with RepeatMasker. Repeatmasker is a program that screens DNA sequences for interspersed repeats and low complexity DNA sequences. the output of the program is a detailed annotation of the repeats that are present in the query sequence as well as a modified version of the query sequence in which all the annotated repeats have been masked. 
+- Repeatmodeler is a repeat-identifying software that can provide a list of repeat family sequences to mask repeats in a genome with RepeatMasker.
+- Repeatmasker is a program that screens DNA sequences for interspersed repeats and low complexity DNA sequences.
+- The output of the program is a detailed annotation of the repeats that are present in the query sequence as well as a modified version of the query sequence in which all the annotated repeats have been masked. 
 
-Things to consider with Repeatmodeler software is that it can take a long time with large genomes (>1Gb==>96hrs on a 16 cpu node). You also need to set the correct parameters in repeatmodeler so that you get repeats that are not only grouped by family, but are also annotated.
+- Things to consider with Repeatmodeler software is that it can take a long time with large genomes (>1Gb==>96hrs on a 16 cpu node).
+- You also need to set the correct parameters in repeatmodeler so that you get repeats that are not only grouped by family, but are also annotated.
 
-Repeatmodeler http://www.repeatmasker.org/RepeatModeler/  
-RepeatMasker http://www.repeatmasker.org/RMDownload.html
+- Repeatmodeler http://www.repeatmasker.org/RepeatModeler/  
+- RepeatMasker http://www.repeatmasker.org/RMDownload.html
 
-The first step to run Repeatmodeler is that you need to build a Database. The Build Database step is quick (several seconds at most). you can either use an interactive node or a job file.
+- The first step to run Repeatmodeler is that you need to build a Database.
+- The Build Database step is quick (several seconds at most).
+-  you can either use an interactive node or a job file.
 
 #### Job file: repeatmodeler_database.job
 - Queue: medium
@@ -528,7 +540,7 @@ RepeatMasker -pa $NSLOTS -xsmall -gff -lib consensi.fa.classified -dir ../repeat
 - bHypOws1_hifiasm.bp.p_ctg.fasta.out: detailed information about the repetitive elements, including coordinates, repeat type and size.
 
 
-### Run GeMoMa
+#### Run GeMoMa
 
 Gene Model Mapper (GeMoMa) is a homology-based gene prediction program. GeMoMa uses the annotation of protein-coding genes in a reference genome to infer the annotation of protein-coding genes in a target genome. Thus, GeMoMa uses amino acid and intron position conservation to create gen models. In addition, GeMoMa allows to incorporate RNA-seq evidence for splice site prediction. (see more in [GeMoMa](http://www.jstacs.de/index.php/GeMoMa-Docs)).
 
