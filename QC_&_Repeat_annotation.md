@@ -399,53 +399,49 @@ The cool thing about this is that you can interact with the results and visualiz
 
 
 #### Kmer-based assembly evaluation with Merqury and Meryl
+- Referecne genome asssemlby is the child.
+- *HOW_N23-0063_1.fastq-001.gz* is father and *HOW_N23-0568_1.fastq-004.gz* is a mother.
 - First, you create a read kmer database from the HiFi, ONT or reads used for the base assembly using meryl.
 - We will be doing two examples one on the Ara ambiguus haplotype-resolved assembly and the other on our primary Guam Rail assembly.
 - install the Merqury and Mery from the github.
-#### A. Build a k-mer database from reads from the exact same file which was used for generating the reference genome assembly.
+
+#### Build a k-mer database from reads from the exact same file which was used for generating the reference genome assembly.
 - Run this to combine both paired-end reads.
--  This will create FMNH390989.meryl — a k-mer database from your reads as an output.
-```bash
-meryl count k=21 output FMNH390989.meryl [ FMNH390989_1.fastq-003.gz FMNH390989_2.fastq-002.gz ]
-```
-#### B. Prepare my assemblies.
 ---
-- bHypOws1_hifiasm.bp.p_ctg.fasta        # Primary assembly
-- bHypOws1_hifiasm.bp.hap1.p_ctg.fasta   # Haplotype 1
-- bHypOws1_hifiasm.bp.hap2.p_ctg.fasta   # Haplotype 2
+- Father:HOW_N23-0063
 ---
-#### C. Build a k-mer database for the assembly
-- This will give use the output of bHypOws1.meryl — a k-mer database from your assembled contigs.
 ```bash
-meryl count k=21 output bHypOws1.meryl bHypOws1_hifiasm.bp.p_ctg.fasta
+meryl k=21 count output father.meryl \
+HOW_N23-0063_1.fastq-001.gz \
+HOW_N23-0063_2.fastq-002.gz
 ```
-#### D. Compute the unique k-mers in the assembly vs. reads.
-- This extracts k-mers present in the assembly but not in the reads (assembly-specific k-mers).
+- Mother:HOW_N23-0568_2
 ```bash
-meryl difference output bHypOws1_unique.meryl bHypOws1.meryl FMNH390989.meryl
+meryl k=21 count output mother.meryl \
+HOW_N23-0568_1.fastq-004.gz \
+HOW_N23-0568_2.fastq-005.gz
 ```
-#### E. Compute the shared k-mers as well.
+#### Step 2: Run Merqury in trio mode
+---
+Use the child assembly (bHypOws1_hifiasm.bp.p_ctg.fasta) as the reference.
+---
 ```bash
-meryl intersect output bHypOws1_shared.meryl bHypOws1.meryl FMNH390989.meryl
+$MERQURY/merqury.sh father.meryl mother.meryl \
+bHypOws1_hifiasm.bp.p_ctg.fasta \
+merqury_trio_output
 ```
-#### F. Run the Mequry for assembly evaluation
-- Assuming merqury is executable in your path (from your previous setup):
-```bash
-merqury.sh FMNH390989.meryl bHypOws1_hifiasm.bp.p_ctg.fasta merqury_output
-```
-
-
-
-module load bioinformatics/merqury/1.3
-sh $MERQURY/best_k.sh 120000000
-
-meryl count k=21 count /data/genomics/workshops/smsc_2024/rawdata/SRR27030659_1_pacbio.fastq output bHypOWs1.meryl
-
-merqury.sh bHypOws1.meryl bHypOws1_hifiasm.bp.p_ctg.fasta bHypOws1_primary
-```
-
-### Masking and annotating repetitive elements with Repeatmodeler and RepeatMasker
-
+---
+- Output will be:
+- Generate k-mer spectra for each parent
+- Assign inherited hap-mers in the child assembly
+- merqury_trio_output.qv → assembly quality values
+- merqury_trio_output.spectra-cn.hist → k-mer copy number histograms
+- merqury_trio_output.completeness.stats → completeness of each haplotype
+- .bed and .wig tracks for IGV/UCSC
+- Plots in .jpeg format for visual inspection
+---
+##### Masking and annotating repetitive elements with Repeatmodeler and RepeatMasker
+---
 - Repeatmodeler is a repeat-identifying software that can provide a list of repeat family sequences to mask repeats in a genome with RepeatMasker.
 - Repeatmasker is a program that screens DNA sequences for interspersed repeats and low complexity DNA sequences.
 - The output of the program is a detailed annotation of the repeats that are present in the query sequence as well as a modified version of the query sequence in which all the annotated repeats have been masked. 
@@ -459,7 +455,7 @@ merqury.sh bHypOws1.meryl bHypOws1_hifiasm.bp.p_ctg.fasta bHypOws1_primary
 - The first step to run Repeatmodeler is that you need to build a Database.
 - The Build Database step is quick (several seconds at most).
 -  you can either use an interactive node or a job file.
-
+---
 #### Job file: repeatmodeler_database.job
 - Queue: medium
 - PE: multi-thread
