@@ -11,10 +11,12 @@ Designed to analyze human genetic data and all its pipelines are optimized for t
 ###### Step 1. Haplotype Caller
 ###### Aligned BAM file(reads mapped to reference genome) and call all possible variants(SNPs and indels) from the samples.
 ###### Generates Genomic VCF(GVCF) which contains both variants and non-variants.
-###### Since, my deduplicated bam file consists of four samples. I want to know the name of the samples.
+###### Since, my deduplicated bam file consists of three samples. I want to know the name of the samples.
+- Now, I removed the deduplicated and also downsampled to ~28X for all the three samples.
 
+#### Location of the deduplicated-downsampled sample.
 ```bash
-samtools view -H /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/Guam_Rail_merged_rmdup.bam | grep '^@RG' | awk '{for(i=1;i<=NF;i++) if($i ~ /^SM:/) print $i}' | sed 's/SM://'
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/Guam_Rail_merged_downsampled.bam
 ```
 
 ### Run the batch script 
@@ -43,7 +45,7 @@ module load samtools-1.22.1
 # -------------------------------
 # Input/output paths
 # -------------------------------
-BAM=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/Guam_Rail_merged_rmdup.bam
+BAM=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/Guam_Rail_merged_downsampled.bam
 REFERENCE=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/bHypOws1_hifiasm.bp.p_ctg.fasta
 GVCF_DIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs
 
@@ -81,7 +83,7 @@ echo "✅ All parallel HaplotypeCaller jobs finished successfully."
 ```bash
 #!/bin/bash -l
 #SBATCH --job-name=CombineGVCFs
-#SBATCH --time=300:00:00
+#SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
 #SBATCH --partition=batch
@@ -93,26 +95,28 @@ echo "✅ All parallel HaplotypeCaller jobs finished successfully."
 # -------------------------------
 # Load modules
 # -------------------------------
-module load gatk-4.1.2.0
+module load samtools-1.22.1
+# Make sure GATK 4.3 is in your PATH
+export PATH=/shared/jezkovt_bistbs_shared/Guam_Rail/.../gatk-4.3.0.0:$PATH
 
 # -------------------------------
 # Define paths
 # -------------------------------
-WORKDIR=/scratch/bistbs/GATK_Variant_Calling
-REF=${WORKDIR}/Dama_gazelle_hifiasm-ULONT_primary.fasta 
-OUTDIR=${WORKDIR}/Combined_GVCF
+WORKDIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs
+REF=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/bHypOws1_hifiasm.bp.p_ctg.fasta
+OUTDIR=$WORKDIR/Combined_GVCF
+
+mkdir -p $OUTDIR
 
 # -------------------------------
 # Combine per-sample GVCFs
 # -------------------------------
 gatk --java-options "-Xmx120G" CombineGVCFs \
-   -R ${REF} \
-   --variant ${WORKDIR}/SRR17129394.g.vcf.gz \
-   --variant ${WORKDIR}/SRR17134085.g.vcf.gz \
-   --variant ${WORKDIR}/SRR17134086.g.vcf.gz \
-   --variant ${WORKDIR}/SRR17134087.g.vcf.gz \
-   --variant ${WORKDIR}/SRR17134088.g.vcf.gz \
-   -O ${OUTDIR}/all_samples_combined.g.vcf.gz
+   -R $REF \
+   --variant $WORKDIR/FMNH390989.g.vcf.gz \
+   --variant $WORKDIR/HOW_N23-0063.g.vcf.gz \
+   --variant $WORKDIR/HOW_N23-0568.g.vcf.gz \
+   -O $OUTDIR/all_samples_combined.g.vcf.gz
 
 # -------------------------------
 # Completion message
