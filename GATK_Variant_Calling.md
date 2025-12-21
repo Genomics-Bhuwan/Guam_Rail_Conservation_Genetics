@@ -135,87 +135,46 @@ gatk --java-options "-Xmx120G" GenotypeGVCFs \
 
 #### Step 4. Variant Filtration
 ```bash
-# -------------------------------
-# Load GATK module
-# -------------------------------
 module load gatk-4.1.2.0
 
-# -------------------------------
-# Input/output paths
-# -------------------------------
-RAW_VCF=/scratch/bistbs/GATK_Variant_Calling/Combined_GVCF/Genotyped_VCF/all_samples_genotyped.vcf.gz
-FILTERED_VCF=/scratch/bistbs/GATK_Variant_Calling/Combined_GVCF/Genotyped_VCF/all_samples_genotyped_gatkfiltered.vcf.gz
+RAW_VCF=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs/Combined_GVCF/Genotyped/all_samples_genotyped.vcf.gz
 
-# -------------------------------
-# Run VariantFiltration
-# -------------------------------
+FILTERED_VCF=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs/Combined_GVCF/Genotyped/all_samples_genotyped_gatkfiltered.vcf.gz
+
 gatk VariantFiltration \
-   -V $RAW_VCF \
-   
-   # -------------------------------
-   # Filter sites with extremely high depth
-   # DP < 1800: remove sites where coverage is unusually high
-   # High depth can indicate collapsed repeats or duplicated regions
-   # -------------------------------
-   -filter "DP < 1800" --filter-name "DP1800" \
-   
-   # -------------------------------
-   # Strand bias filters
-   # FS > 60.0: Fisher Strand test; removes sites with strong strand bias
-   # SOR > 3.0: Strand Odds Ratio; another measure of strand bias
-   # Sites failing these filters are likely sequencing/mapping artifacts
-   # -------------------------------
-   -filter "FS > 60.0" --filter-name "FS60" \
-   -filter "SOR > 3.0" --filter-name "SOR3" \
-   
-   # -------------------------------
-   # Mapping quality filter
-   # MQ < 40.0: remove sites where reads are poorly aligned
-   # Poorly mapped reads can introduce false variants
-   # -------------------------------
-   -filter "MQ < 40.0" --filter-name "MQ40" \
-   
-   # -------------------------------
-   # Mapping quality rank sum test
-   # MQRankSum < -12.5: tests if alternate alleles have lower mapping quality than reference
-   # Extreme negative values indicate alignment bias against alternate alleles
-   # -------------------------------
-   -filter "MQRankSum < -12.5" --filter-name "MQRankSum-12.5" \
-   
-   # -------------------------------
-   # Read position rank sum test
-   # ReadPosRankSum < -8.0: tests if alternate alleles occur at biased positions in reads
-   # Negative values indicate alt alleles mostly at read ends, often errors
-   # -------------------------------
-   -filter "ReadPosRankSum < -8.0" --filter-name "ReadPosRankSum-8" \
-   
-   # -------------------------------
-   # Output filtered VCF
-   # -------------------------------
-   -O $FILTERED_VCF
+  -V $RAW_VCF \
+  -filter "DP < 1800" --filter-name "DP1800" \
+  -filter "FS > 60.0" --filter-name "FS60" \
+  -filter "SOR > 3.0" --filter-name "SOR3" \
+  -filter "MQ < 40.0" --filter-name "MQ40" \
+  -filter "MQRankSum < -12.5" --filter-name "MQRankSum-12.5" \
+  -filter "ReadPosRankSum < -8.0" --filter-name "ReadPosRankSum-8" \
+  -O $FILTERED_VCF
+
 ```
 
 #### Step 5.A VCF Filtering for Population Genomics. We only keep SNPs for Population Genomics Analysis.
 ```bash
-module load vcftools
+# Set variables
+RAW_VCF="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs/Combined_GVCF/Genotyped/all_samples_genotyped_gatkfiltered.vcf.gz"
+OUTDIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs/Combined_GVCF/Genotyped"
+OUTPREFIX="${OUTDIR}/Guam_rail_without_indels"
 
-RAW_VCF=/scratch/bistbs/GATK_Variant_Calling/Combined_GVCF/Genotyped_VCF/all_samples_genotyped_gatkfiltered.vcf.gz
-VCFTOOLS_OUT=/scratch/bistbs/GATK_Variant_Calling/Combined_GVCF/Genotyped_VCF/Without_Indels/Dama_gazelle_without_indels
+# Filter VCF
+vcftools \
+  --gzvcf $RAW_VCF \
+  --minQ 30 \
+  --remove-indels \
+  --recode \
+  --recode-INFO-all \
+  --out $OUTPREFIX
 
-# ------------------------------
-# Filter with VCFtools
-# ------------------------------
-vcftools --gzvcf $RAW_VCF \                # Input VCF (can be gzipped)
-         --minQ 30 \                       # Keep only sites with minimum quality score of 30 (high-confidence genotypes)
-         --remove-indels \                 # Remove INDELs, keeping only SNPs
-         --recode --recode-INFO-all \      # Produce a new VCF while keeping all INFO fields
-         --out $VCFTOOLS_OUT               # Output prefix (final file: Dama_gazelle_without_indels.recode.vcf)
+# Generate individual missingness file
+vcftools \
+  --vcf ${OUTPREFIX}.recode.vcf \
+  --missing-indv
 
-# ------------------------------
-# Check missingness per individual
-# ------------------------------
-vcftools --vcf ${VCFTOOLS_OUT}.recode.vcf \  # Use the SNP-only VCF as input
-         --missing-indv                     # Reports fraction of missing genotypes per sample
+```
 
 
 # This will produce 'out.miss' file with % missing genotypes per individual
@@ -229,26 +188,15 @@ tabix -p vcf /scratch/bistbs/GATK_Variant_Calling/Combined_GVCF/Genotyped_VCF/Wi
 ```
 #### Step 5.B Keep indels if you want to do SNpeff and VEP(Variant Effect Predictor).
 ```bash
-module load vcf-tools
+INPUT_VCF="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs/Combined_GVCF/Genotyped/Guam_rail_without_indels.recode.vcf"
+OUTDIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/GVCFs/Combined_GVCF/Genotyped"
+OUT_VCF="${OUTDIR}/Guam_rail_biallelic_snps.vcf.gz"
 
-RAW_VCF=/scratch/bistbs/GATK_Variant_Calling/Combined_GVCF/Genotyped_VCF/all_samples_genotyped_gatkfiltered.vcf.gz
-VCFTOOLS_OUT=/scratch/bistbs/GATK_Variant_Calling/Combined_GVCF/Genotyped_VCF/With_Indels/Dama_gazelle_with_indels
+# Filter for biallelic SNPs and compress
+bcftools view -v snps -m2 -M2 $INPUT_VCF -Oz -o $OUT_VCF
 
-# ------------------------------
-# Filter with VCFtools (keep SNPs + INDELs)
-# ------------------------------
-vcftools \
-  --gzvcf $RAW_VCF \
-  --minQ 30 \
-  --recode --recode-INFO-all \
-  --out $VCFTOOLS_OUT
-
-# ------------------------------
-# Check missingness per individual
-# ------------------------------
-vcftools \
-  --vcf ${VCFTOOLS_OUT}.recode.vcf \
-  --missing-indv
+# Index the new VCF
+tabix -p vcf $OUT_VCF
 
 ```
 
