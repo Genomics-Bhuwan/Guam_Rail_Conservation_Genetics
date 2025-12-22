@@ -7,17 +7,6 @@
 - However, it is possible to use the tool on novel genomes as well, using just the fasta sequence and a gene annotation file.
 - This will provide one of the following _impact factors_ for all our variants:
 
-| Impact factor | Description |
-| --- | ----|
-| LOW | synonymous variants |
-| MODERATE | non-synonymous variants
-| HIGH | non-sense variants (affect start, stop or reading frame) |
-| MODIFIER | all other variants (for example intronic, UTRs, intergenic) |
-
-- We will consider the classes 'MODERATE' and 'HIGH' as potentially deleterious. (This will not always be true, but we will never know the exact effect of all mutations, not even in model organisms, and that's just something we have to live with!)
-
-- In this tutorial we will first annotate the SNP variants in the Dama gazelle, and then extract the classes LOW, MODERATE and HIGH to analyze them further.
-
 ##### Run VEP  
 ###### 1. Preparing the reference genome and annotation
 
