@@ -89,14 +89,13 @@ singularity exec vep.sif vep \
 - All the information in the summary can also be found in the raw output. We can use a variety of unix tools to check it out:
 ##### Count the number of annotated variants as annotated by VEP 
 ##### (Grep -v removes the header lines: the ones that start with #)
-- The total annotated variants is:9435988
+- The total annotated variants is:12520208
 ```bash
  grep -v "^#" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt | wc -l 
 ```
 ##### How does this relate to the number variants in your input file?
 - Count the number of unique annotated variants
 - (cut -f1 extracts the first column only, uniq take only unique lines, and wc -l counts the lines)
-- 19,638 variants have multiple annotations and 9416350 had unqiue variants.
 ```bash
 grep -v "^#" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt | cut -f1 | uniq | wc -l
 
@@ -113,82 +112,74 @@ grep "IMPACT=LOW" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Gua
 ##### 2. Extract subsets of data
 - As we are interested in the deleterious variants, we will mainly focus on the MODERATE and the HIGH impact category.
 - However, to have something potentially neutral to compare with, we will keep the LOW category for a little bit longer.
-
-##### First we extract the most severe category - nonsense variants
-# Extract variants with a high predicted impact.
-
+  
 ```bash
-grep "IMPACT=HIGH" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq >high_impact.pos.txt
+module unload gcc/8.5.0
+module load vcf-tools
 ```
-- Now do the same for the non-synonymous variants or moderate effect variant.
 ```bash
-grep "IMPACT=MODERATE" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq >moderate_impact.pos.txt
+VEP_FILE="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt"
+VCF_FILE="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_biallelic_snps.vcf.gz"
 ```
-- Are there any sites annotated as both HIGH and MODERATE? We can check this by joining the two files:
+#### Extract unique positions per impact
 ```bash
-join <(sort high_impact.pos.txt) <(sort moderate_impact.pos.txt)
-```
-- If there are, we should remove the shared variants from the less severe impact class.
-- Re-run extracting moderate variants, removing positions overlapping with high impact
-- join -v1 will return all lines in file 1 not overlapping with file 2.
-```bash
-grep "IMPACT=MODERATE" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq |join -v1 <(sort -) <(sort high_impact.pos.txt) >moderate_impact.pos.txt
-```
-- We can do the same for the LOW impact variants, removing any overlaps with either of the two previous files.
-```bash
-grep "IMPACT=LOW" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq |join -v1 <(sort -) <(sort high_impact.pos.txt) |join -v1 - <(sort moderate_impact.pos.txt) >low_impact.pos.txt
+grep "IMPACT=HIGH" "$VEP_FILE" | cut -f2 | sort -u > high_all.pos.txt
+grep "IMPACT=MODERATE" "$VEP_FILE" | cut -f2 | sort -u > moderate_all.pos.txt
+grep "IMPACT=LOW" "$VEP_FILE" | cut -f2 | sort -u > low_all.pos.txt
 ```
 
-#### If we want to extract the variants from the vcf file using vcftools, we need tab separated positions files. 
-- We can use the Stream EDitor sed to replace the ":" to tabs (\t).
+#### Define HIGH-only (all HIGH variants)
 ```bash
-sed -i 's/:/\t/g' low_impact.pos.txt
-sed -i 's/:/\t/g' moderate_impact.pos.txt
-sed -i 's/:/\t/g' high_impact.pos.txt
+cp high_all.pos.txt high_only.pos.txt
 ```
-
-Create new vcf files with the variants we are interested in.
+#### Define MODERATE-only (remove HIGH overlap)
 ```bash
-module unload gcc/8.5.0  
-module load bio/vcftools/0.1.16
-vcftools --vcf Dama_gazelle_biallelic_snps_autosomes.vcf  --positions low_impact.pos.txt --recode --out Dama_gazelle_low_impact
-vcftools --vcf Dama_gazelle_biallelic_snps_autosomes.vcf  --positions moderate_impact.pos.txt --recode --out Dama_gazelle_moderate_impact
-vcftools --vcf Dama_gazelle_biallelic_snps_autosomes.vcf  --positions high_impact.pos.txt --recode --out Dama_gazelle_high_impact
+join -v1 moderate_all.pos.txt high_only.pos.txt > moderate_only.pos.txt
 ```
-
-### 3. Analyze the alleles
-- Before we start investigating genetic load, there is one important thing we need to think about: _Which_ of the two alleles in a site is the deleterious one??
-- Vep doesn't provide us with this information.
-- We know that a mutation in a certain position causes a non-synonymous variation, and that this could be harmful.
-- But for all we know, it could be our reference individual who is carrying the deleterious allele, and the other individuals carrying the 'normal' variant.
-- There are a few different ways to figure this out (see further below*), but for now we will assume that the REFERENCE allele is 'normal', and that the ALTERNATIVE allele is deleterious.
-- A very convenient tool to count allele types and plot results is the vcfR package in R.
-- As this course is not focusing on R, I'll show how we can look at genotypes and count alleles using different unix tools and vcftools. For those interested in the vcfR code, it can be found at the bottom of this page**.
-
-#### a) Allele frequency spectrum
-- A good method to see if our potentially deleterious sites are under more selective constraints than for example synonymous mutations, is to compare their allele frequency spectra. 
-- With only give individuals we only have four alleles to work with, but let's give it a try!
+#### Define LOW-only (remove HIGH and MODERATE overlap)
+```bash
+join -v1 low_all.pos.txt high_only.pos.txt | join -v1 - moderate_only.pos.txt > low_only.pos.txt
+```
+#### Convert to tab-separated format for VCF extraction
+```bash
+sed -i 's/:/\t/g' high_only.pos.txt
+sed -i 's/:/\t/g' moderate_only.pos.txt
+sed -i 's/:/\t/g' low_only.pos.txt
+```
+#### Extract VCF subsets using vcftools
+```bash
+vcftools --gzvcf "$VCF_FILE" --positions high_only.pos.txt --recode --out Guam_rail_high_impact
+vcftools --gzvcf "$VCF_FILE" --positions moderate_only.pos.txt --recode --out Guam_rail_moderate_impact
+vcftools --gzvcf "$VCF_FILE" --positions low_only.pos.txt --recode --out Guam_rail_low_impact
+```
+#### Quick visual check for moderate impact 
+```bash
+grep -v "##" Guam_rail_moderate_impact.recode.vcf | \
+awk '{out=$1"\t"$2; for(i=10; i<=11; i++){split($i,s,":"); out=out"\t"s[1]}; print out}' | less
+```
+#### Calculate the allele frequencies with VCFtools
+- We want to know the site frequency spectrum(SFS) for each impact class(Low, Moderate, High).
 
 ```bash
-# First we'll just look at the genotypes (remove everything else)
-grep -v "##" Dama_gazelle_moderate_impact.recode.vcf | awk '{out=$1"\t"$2; for(i=10; i<=11; i++){split($i,s,":"); out=out"\t"s[1]}; print out}' |less
-```
-- This is a good start to just get a feeling for the data.
-- Now we will use vcftools to calculate allele frequency for each site. This will create .frq output files that we can summarize into a little table.
-``` bash
-# Create a table header
-echo "Type Number Ref_freq Alt_freq" |sed 's/ /\t/g' >SFS.txt
-# Loop over the types, create a frequency table and summarize
+- Create SFS output table with header
+echo -e "Type\tNumber\tRef_freq\tAlt_freq" > SFS.txt
+
+- Loop over impact classes
 for type in "low" "moderate" "high"
 do
-  vcftools --vcf Dama_gazelle_${type}_impact.recode.vcf --freq --out Dama_gazelle_${type}_impact
-  tail -n+2 Dama_gazelle_${type}_impact.frq  |cut -f5,6 |sed 's/:/\t/g' | cut -f2,4 |sort |uniq -c |awk -v t=$type -v OFS="\t" '{print t,$0}' >>SFS.txt
+    - Calculate allele frequencies per site
+    vcftools --vcf Guam_rail_${type}_impact.recode.vcf --freq --out Guam_rail_${type}_impact
+
+    - Extract allele frequencies and summarize counts
+    tail -n+2 Guam_rail_${type}_impact.frq | \
+    cut -f5,6 | sed 's/:/\t/g' | cut -f2,4 | sort | uniq -c | \
+    awk -v t=$type -v OFS="\t" '{print t,$0}' >> SFS.txt
 done
-# A lot of different unix tools here, including an awk script..
-# Make sure you know what each step does!
 ```
-- The file SFS.txt contains the site frequency spectra for all the three types of mutations.
-- Below is some R code you can use for plotting, but you can use any tool you like (even Excel)
+
+
+
+
 
 ```R
 require(tidyverse)
