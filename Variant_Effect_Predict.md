@@ -103,7 +103,7 @@ grep -v "^#" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rai
 ##### Many variants are annotated several times, for example if a gene has multiple transcripts, or if two genes are overlapping.
 - Check what annotations are classified as having a low impact, and how many there are of each type
 - (sort will sort the output in alphabetical order, and uniq -c will count all unique lines)
-- 3745 synonymous_variant or low impact variant.
+
 ```bash
 grep "IMPACT=LOW" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt  |cut -f7 |sort |uniq -c
 ```
@@ -114,7 +114,7 @@ grep "IMPACT=LOW" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Gua
 - However, to have something potentially neutral to compare with, we will keep the LOW category for a little bit longer.
   
 ```bash
-module unload gcc/8.5.0
+module unload gcc-8.5.0
 module load vcf-tools
 ```
 ```bash
@@ -176,11 +176,6 @@ do
     awk -v t=$type -v OFS="\t" '{print t,$0}' >> SFS.txt
 done
 ```
-
-
-
-
-
 ```R
 require(tidyverse)
 
@@ -204,134 +199,126 @@ ggplot(SFS_rel, aes(x=Alt_freq, y=Rel, fill=Type)) +
 ```
 Now it looks better! We see that the 'HIGH' category is shifted to the left, and the 'LOW' category has relatively more sites with higher alternative frequency. Can you explain why?
 
-
+################################################################################################################################################################
 #### b) Masked and realized load
 From the lectures, we recall that masked load comes from heterozygous deleterious mutations, and realized load comes from homozygous deleterious mutations. First we can just look at different genotype counts from one individual:
 
 ```bash
-# First individual in column 10 (cut -f10 means extract the 10th column)
-grep -v "##" Dama_gazelle_moderate_impact.recode.vcf |cut -f10 |cut -f1 -d":" |sort |uniq -c
-```
-To look at the next individual we can replace `cut -f10` with `cut -f11`. If we haven't noticed it before, some sites are _phased_, with a '|' between the alleles instead of the standard '/'. When we count for example heterozygous sites, we take both "0/1" and "0|1". Do you notice some striking difference between the individuals?
+# Create output directory
+OUTPUT_DIR="./Heterozygosity_load"
+mkdir -p "$OUTPUT_DIR"
+OUTPUT_FILE="$OUTPUT_DIR/Load_table.txt"
 
-Now we use some more awk and unix tools to save heterozygous and homozygous alternative sites from high and moderate separately
-```bash
-# Create a new file with just a header
-# Create a new file with header
-echo -e "Type\tInd\tLoad\tNumber" > Load_table.txt
+# Add header
+echo -e "Type\tInd\tLoad\tNumber" > "$OUTPUT_FILE"
 
 # Loop over types
-for type in "moderate" "high"
+for type in "moderate" "high" "low"
 do
-    # Get the sample columns (all columns after the 9th in VCF)
-    samples=($(grep "#CHROM" Dama_gazelle_${type}_impact.recode.vcf | cut -f10-))
-    
+    VCF_FILE="./Guam_rail_${type}_impact.recode.vcf"
+
+    # Get sample names from VCF header
+    samples=($(grep "^#CHROM" "$VCF_FILE" | cut -f10-))
+
     # Loop over each individual
     for idx in $(seq 0 $((${#samples[@]} - 1)))
     do
         ind=${samples[$idx]}
         col=$((idx + 10))  # VCF columns start at 1
-        
-        # Count masked (heterozygous) and realized (homozygous alt) load
-        grep -v "^#" Dama_gazelle_${type}_impact.recode.vcf | \
+
+        # Count heterozygous (masked) and homozygous alt (realized)
+        grep -v "^#" "$VCF_FILE" | \
         cut -f$col | cut -f1 -d":" | \
-        awk -v OFS="\t" -v t=$type -v i=$ind -v masked=0 -v realized=0 \
-        '{if($1=="0/1" || $1=="0|1"){masked++}else if($1=="1/1" || $1=="1|1"){realized++}} \
-        END{print t,i,"masked",masked; print t,i,"realized",realized}' >> Load_table.txt
+        awk -v OFS="\t" -v t=$type -v i=$ind \
+        '{if($1=="0/1" || $1=="0|1"){masked++} else if($1=="1/1" || $1=="1|1"){realized++}} \
+        END{print t,i,"masked",masked; print t,i,"realized",realized}' >> "$OUTPUT_FILE"
     done
 done
+
+echo "Heterozygosity load table saved in: $OUTPUT_FILE"
 
 ```
 ##### This script is used for plotting the load(Masked and Realized load in Dama gazelle.
 ```R
-# Load libraries
 library(tidyverse)
 library(grid)
 
 # Load the Load table
-LOAD <- read.table("Load_table.txt", header=TRUE) %>% as_tibble()
+LOAD <- read.table("Load_table.txt", header=TRUE, fill=TRUE) %>% as_tibble()
+
+# Replace missing Number values with 0
+LOAD <- LOAD %>%
+  mutate(Number = as.numeric(Number),
+         Number = ifelse(is.na(Number), 0, Number))
 
 # Capitalize Load and Type labels
 LOAD <- LOAD %>%
   mutate(
     Load = ifelse(Load == "masked", "Masked", "Realized"),
-    Type = ifelse(Type == "high", "High", 
-                  ifelse(Type == "moderate", "Moderate", Type))
+    Type = case_when(
+      Type == "high" ~ "High",
+      Type == "moderate" ~ "Moderate",
+      Type == "low" ~ "Low",
+      TRUE ~ Type
+    )
   )
 
 # Colors for Load types
 load_colors <- c("Masked" = "#1b9e77", "Realized" = "#d95f02")
 
-# Create the plot
+# Combined plot with bounding box
 p <- ggplot(LOAD, aes(x=Ind, y=Number, fill=Load)) +
-  geom_bar(stat="identity", position=position_dodge(width=0.75), width=0.7) +
+  geom_bar(stat="identity", position=position_dodge(width=0.8), width=0.7) +
   geom_text(aes(label=Number), 
-            position=position_dodge(width=0.75), 
-            vjust=-0.4, size=4) +
-  facet_wrap(Type ~ ., nrow=2, scales='free_y', strip.position = "top") +
+            position=position_dodge(width=0.8), vjust=-0.4, size=3.5) +
+  facet_wrap(~Type, nrow=1, scales='free_y') +  # All types in one row
   scale_fill_manual(values = load_colors) +
   theme_classic() +
   theme(
     axis.title.x = element_text(size=14, face="bold"),
     axis.title.y = element_text(size=14, face="bold"),
-    axis.text.x = element_text(size=12, face="bold"),
-    axis.text.y = element_text(size=14, face="bold"),
+    axis.text.x = element_text(size=12, angle=45, hjust=1, face="bold"),
+    axis.text.y = element_text(size=12),
     legend.title = element_text(size=14, face="bold"),
-    legend.text = element_text(size=13),
-    legend.position = c(0.95, 0.95),          # top-right inside plot
-    legend.justification = c("right", "top"),
-    legend.direction = "vertical",            # vertical inside
-    legend.key.size = unit(0.8, "lines"),
-    legend.background = element_rect(fill = alpha('white', 0.6), color = NA),
+    legend.text = element_text(size=12),
+    legend.position = "top",
     strip.text = element_text(size=14, face="bold"),
-    strip.background = element_rect(fill="grey95", color=NA),
     panel.grid.major = element_line(color="grey80", linetype="dashed"),
     panel.grid.minor = element_line(color="grey90", linetype="dashed"),
-    axis.ticks = element_line(size=0.8),
-    panel.border = element_rect(color="black", fill=NA, size=0.8),
-    panel.spacing.y = unit(6, "mm")
+    panel.border = element_rect(color="black", fill=NA, size=0.8), # bounding box for each panel
+    plot.background = element_rect(color="black", size=1, fill=NA), # bounding box for entire plot
+    panel.spacing = unit(1, "lines")
   ) +
   labs(x="Individual Sample", y="Number of Sites", fill="Load Type")
 
-# Set publication-ready dimensions
-fig_width <- 220  # mm
-fig_height <- 260 # mm
-
-# Save as PDF
-ggsave("GeneticLoad_Figure_LoadTypeLegend_InsideTopRight.pdf", plot = p,
-       width = fig_width, height = fig_height, units = "mm",
-       dpi = 300, device = cairo_pdf)
-
-# Save as high-quality JPEG
-ggsave("GeneticLoad_Figure_LoadTypeLegend_InsideTopRight.jpeg", plot = p,
-       width = fig_width, height = fig_height, units = "mm",
-       dpi = 600)
+# Save combined figure with bounding box
+ggsave("GeneticLoad_Combined_AllTypes_Box.pdf", plot = p, width=300, height=180, units="mm", dpi=300)
+ggsave("GeneticLoad_Combined_AllTypes_Box.jpeg", plot = p, width=300, height=180, units="mm", dpi=600)
 
 ```
-- Do you see a difference between the individuals? Or a difference between 'HIGH' impact mutations and 'MODERATE' impact mutations?
-
-- Remenber, this is just a very rough estimation of genetic load! Apart from finding the correct deleterious allele (which we ignored above), it might be necessary to account for differences in sequencing (if some individuals have more missing data, for example). 
-- One way to do this is to calculate load as the number of deleterious alleles per genotyped sites.  
-- This is the end of this tutorial! For the interested there are some extra information and code below.
 
 ####  We decided to find out the funcational classification of the hihg impact variants using VEP.
 - Functional classification of HIGH-impact variants (VEP)
 - Extract functional consequences of HIGH-impact variants
-
 ```bash
-grep "IMPACT=HIGH" Dama_gazelle_vep_biallelic_snps.txt | \
-cut -f7 | tr "," "\n" | \
-sort | uniq -c | sort -nr > HighImpact_FunctionalClasses.txt
+#### Count HIGH-impact functional classes for Guam rail
 
-cat HighImpact_FunctionalClasses.txt
+grep "IMPACT=HIGH" Guam_rail_vep_biallelic_snps.txt | \
+cut -f7 | tr "," "\n" | \
+sort | uniq -c | sort -nr > GuamRail_HighImpact_FunctionalClasses.txt
+
+# View the results
+cat GuamRail_HighImpact_FunctionalClasses.txt
+
 ```
 - Above result showed:
--  59 stop_gained
-- 6 splice_donor_variant
-- 27 splice_acceptor_variant
-- 12 start_lost
-- 9 stop_lost
-- 2 non_coding_transcript_variant
+- stop_gained	770
+- splice_donor_variant	448
+- splice_acceptor_variant	190
+- start_lost	184
+- stop_lost	107
+- splice_region_variant	46
+
 
   #### Next job is to see the chromosomal distribution of High impact variants.
   - Count HIGH-impact variants per chromosome
@@ -437,177 +424,167 @@ do
 done
 ```
 ###############################################################################################################################
----
-- Variants for Moderate
----
-####  We decided to find out the funcational classification of the Moderate impact variants using VEP.
-- Functional classification of Moderate-impact variants (VEP)
-- Extract functional consequences of Moderate-impact variants
 
+### IN ROH vs In High Impact variants.
 ```bash
-grep "IMPACT=MODERATE" Dama_gazelle_vep_biallelic_snps.txt | \
+module load bedtools-2.28
+# -----------------------------
+# Create unique output directory
+# -----------------------------
+OUTDIR="GuamRail_HighImpact_Results"
+mkdir -p $OUTDIR
+echo "All outputs will be saved in $OUTDIR"
+
+# -----------------------------
+# Step 1: Functional Classes of HIGH-impact variants
+# -----------------------------
+grep "IMPACT=HIGH" Guam_rail_vep_biallelic_snps.txt | \
 cut -f7 | tr "," "\n" | \
-sort | uniq -c | sort -nr > ModerateImpact_FunctionalClasses.txt
+sort | uniq -c | sort -nr > $OUTDIR/HighImpact_FunctionalClasses.txt
+echo "HighImpact Functional Classes:"
+cat $OUTDIR/HighImpact_FunctionalClasses.txt
 
-cat ModerateImpact_FunctionalClasses.txt
-
-- result showed 3996 missense_variants
-
-```
-#### Next job is to see the chromosomal distribution of Moderate impact variants.
-  - Count moderate-impact variants per chromosome
-  - when I did cat on ModerateImpact_PerChromosome.txt, it showed at least all 17 autosomes had moderate impact variants.
-```bash
-grep "IMPACT=MODERATE" Dama_gazelle_vep_biallelic_snps.txt | \
+# -----------------------------
+# Step 2: HIGH-impact variants per chromosome
+# -----------------------------
+grep "IMPACT=HIGH" Guam_rail_vep_biallelic_snps.txt | \
 cut -f2 | cut -d: -f1 | \
-sort | uniq -c | sort -nr > MODERATEImpact_PerChromosome.txt
-```
-#### Extract the REALIZED load(Homozygous alternate) for all five individuals.
-- Realized load = homozygous alternative(1/1 or 1|1).
-- Convert VCF to BED (0-bed) for ROH intersection.
-```bash
-# Extract VCF header to get sample IDs
-grep "#CHROM" Dama_gazelle_moderate_impact.recode.vcf > vcf_header.txt
+sort | uniq -c | sort -nr > $OUTDIR/HighImpact_PerChromosome.txt
+echo "HighImpact variants per chromosome:"
+cat $OUTDIR/HighImpact_PerChromosome.txt
 
-# Loop over individuals (columns 10-14) to get 0-based BED
-for col in 10 11 12 13 14; do
-  ind=$(cut -f$col vcf_header.txt)
-  
-  grep -v "^#" Dama_gazelle_moderate_impact.recode.vcf | \
-  awk -v c=$col '$c ~ /^1[\/|]1/' | \
-  awk '{print $1"\t"$2-1"\t"$2}' > ${ind}_realized_moderate.bed
+# -----------------------------
+# Step 3: Extract VCF header
+# -----------------------------
+grep "#CHROM" Guam_rail_high_impact.recode.vcf > $OUTDIR/vcf_header.txt
+
+# -----------------------------
+# Step 4: Convert VCF to 0-based BED for homozygous alternate (1/1 or 1|1)
+# -----------------------------
+for col in 10 11 12; do
+    ind=$(cut -f$col $OUTDIR/vcf_header.txt)
+    
+    grep -v "^#" Guam_rail_high_impact.recode.vcf | \
+    awk -v c=$col '$c ~ /^1[\/|]1/' | \
+    awk '{print $1"\t"$2-1"\t"$2}' > $OUTDIR/${ind}_realized_high.bed
 done
 
-```
-#### Intersect the realized load with ROH(All individuals).
-- Intersect realized deleterious variants with ROH regions. 
+# -----------------------------
+# Step 5: Convert PLINK ROH .hom to BED
+# -----------------------------
+for ind in FMNH390989 HOW_N23-0063 HOW_N23-0568; do
+    awk -v OFS="\t" -v ind=$ind '$2==ind {print $4, $7-1, $8}' Guam_rail_ROH.hom > $OUTDIR/${ind}.roh.bed
+done
 
-```bash
-# List of individual IDs
-for ind in SRR17129394 SRR17134085 SRR17134086 SRR17134087 SRR17134088
-do
-    # 1. Generate per-individual ROH BED file
-    awk -v id=$ind '$2 == id {print $4"\t"$7-1"\t"$8}' Dama_gazelle_ROH.hom > ${ind}.roh.bed
-
-    # 2. Intersect realized moderate variants with ROH regions
+# -----------------------------
+# Step 6: Intersect realized HIGH-impact variants with ROH
+# -----------------------------
+for ind in FMNH390989 HOW_N23-0063 HOW_N23-0568; do
     bedtools intersect \
-        -a ${ind}_realized_moderate.bed \
-        -b ${ind}.roh.bed \
-        -u > ${ind}_realized_moderate_inROH.bed
+        -a $OUTDIR/${ind}_realized_high.bed \
+        -b $OUTDIR/${ind}.roh.bed \
+        -u > $OUTDIR/${ind}_realized_high_inROH.bed
 done
 
-```
-#### Let's convert the PLINK ROH(.hom) to BED.
-#### Convert all individuals from .hom to BED format.
-- I got the file Dama_gazelle_ROH.hom from the folder of ROH analysis after running PLINK.
-```bash
-for ind in SRR17129394 SRR17134085 SRR17134086 SRR17134087 SRR17134088; do
-  awk -v OFS="\t" -v ind=$ind '$2==ind {print $4, $7-1, $8}' Dama_gazelle_ROH.hom > ${ind}.roh.bed
-done
-```
-#### Time to Intersect Realized Moderate Impact Variants with ROH
-```
-module load bedtools
-for ind in SRR17129394 SRR17134085 SRR17134086 SRR17134087 SRR17134088; do
-  bedtools intersect \
-    -a ${ind}_realized_moderate.bed \
-    -b ${ind}.roh.bed \
-    -u > ${ind}_realized_moderate_inROH.bed
-done
-```
-#### Let us summarize the realized load and ROH LOAD.
-#### Output file
----
-```bash
-output="GeneticLoad_Moderate_ROH_Table.txt"
+# -----------------------------
+# Step 7: Summarize Realized Load and ROH Load
+# -----------------------------
+echo -e "Individual\tSpecies\tTotal_Realized\tIn_ROH" > $OUTDIR/GeneticLoad_ROH_Table.txt
 
-# Write header
-echo -e "Individual\tSpecies\tTotal_Realized\tIn_ROH" > $output
+for ind in FMNH390989 HOW_N23-0063 HOW_N23-0568; do
+    species="Guam_rail"
 
-# Loop over individuals
-for ind in SRR17129394 SRR17134085 SRR17134086 SRR17134087 SRR17134088
-do
-    # Assign species
-    species="Addra"
-    [[ $ind == SRR17134087 || $ind == SRR17134088 ]] && species="Mhorr"
+    total=$(wc -l < $OUTDIR/${ind}_realized_high.bed)
+    inroh=$(wc -l < $OUTDIR/${ind}_realized_high_inROH.bed)
 
-    # Count total realized moderate variants
-    total=$(wc -l < ${ind}_realized_moderate.bed)
-    # Count variants in ROH
-    inroh=$(wc -l < ${ind}_realized_moderate_inROH.bed)
-
-    # Append to the summary table
-    echo -e "$ind\t$species\t$total\t$inroh" >> $output
+    echo -e "$ind\t$species\t$total\t$inroh" >> $OUTDIR/GeneticLoad_ROH_Table.txt
 done
 
-echo "Summary table saved as $output"
-$species\t$total\t$inroh" >> GeneticLoad_Moderate_ROH_Table.txt
+echo "Summary table saved to $OUTDIR/GeneticLoad_ROH_Table.txt"
+cat $OUTDIR/GeneticLoad_ROH_Table.txt
+````
+
+#### For moderate impact variants
+```bash
+module load bedtools-2.28
+
+# -----------------------------
+# Create unique output directory
+# -----------------------------
+OUTDIR="GuamRail_ModerateImpact_Results"
+mkdir -p $OUTDIR
+echo "All outputs will be saved in $OUTDIR"
+
+# -----------------------------
+# Step 1: Functional Classes of MODERATE-impact variants
+# -----------------------------
+grep "IMPACT=MODERATE" Guam_rail_vep_biallelic_snps.txt | \
+cut -f7 | tr "," "\n" | \
+sort | uniq -c | sort -nr > $OUTDIR/ModerateImpact_FunctionalClasses.txt
+echo "ModerateImpact Functional Classes:"
+cat $OUTDIR/ModerateImpact_FunctionalClasses.txt
+
+# -----------------------------
+# Step 2: MODERATE-impact variants per chromosome
+# -----------------------------
+grep "IMPACT=MODERATE" Guam_rail_vep_biallelic_snps.txt | \
+cut -f2 | cut -d: -f1 | \
+sort | uniq -c | sort -nr > $OUTDIR/ModerateImpact_PerChromosome.txt
+echo "ModerateImpact variants per chromosome:"
+cat $OUTDIR/ModerateImpact_PerChromosome.txt
+
+# -----------------------------
+# Step 3: Extract VCF header
+# -----------------------------
+grep "#CHROM" Guam_rail_moderate_impact.recode.vcf > $OUTDIR/vcf_header.txt
+
+# -----------------------------
+# Step 4: Convert VCF to 0-based BED for homozygous alternate (1/1 or 1|1)
+# -----------------------------
+for col in 10 11 12; do
+    ind=$(cut -f$col $OUTDIR/vcf_header.txt)
+    
+    grep -v "^#" Guam_rail_moderate_impact.recode.vcf | \
+    awk -v c=$col '$c ~ /^1[\/|]1/' | \
+    awk '{print $1"\t"$2-1"\t"$2}' > $OUTDIR/${ind}_realized_moderate.bed
 done
+
+# -----------------------------
+# Step 5: Convert PLINK ROH .hom to BED
+# -----------------------------
+for ind in FMNH390989 HOW_N23-0063 HOW_N23-0568; do
+    awk -v OFS="\t" -v ind=$ind '$2==ind {print $4, $7-1, $8}' Guam_rail_ROH.hom > $OUTDIR/${ind}.roh.bed
+done
+
+# -----------------------------
+# Step 6: Intersect realized MODERATE-impact variants with ROH
+# -----------------------------
+for ind in FMNH390989 HOW_N23-0063 HOW_N23-0568; do
+    bedtools intersect \
+        -a $OUTDIR/${ind}_realized_moderate.bed \
+        -b $OUTDIR/${ind}.roh.bed \
+        -u > $OUTDIR/${ind}_realized_moderate_inROH.bed
+done
+
+# -----------------------------
+# Step 7: Summarize Realized Load and ROH Load
+# -----------------------------
+echo -e "Individual\tSpecies\tTotal_Realized\tIn_ROH" > $OUTDIR/GeneticLoad_ROH_Moderate_Table.txt
+
+for ind in FMNH390989 HOW_N23-0063 HOW_N23-0568; do
+    species="Guam_rail"
+
+    total=$(wc -l < $OUTDIR/${ind}_realized_moderate.bed)
+    inroh=$(wc -l < $OUTDIR/${ind}_realized_moderate_inROH.bed)
+
+    echo -e "$ind\t$species\t$total\t$inroh" >> $OUTDIR/GeneticLoad_ROH_Moderate_Table.txt
+done
+
+echo "Summary table saved to $OUTDIR/GeneticLoad_ROH_Moderate_Table.txt"
+cat $OUTDIR/GeneticLoad_ROH_Moderate_Table.txt
 ```
 
 
-
-
-
-#### Now, we will do Gene Ontology analysis for the high impact variants
-- Step 1: Create VCFs per subspecies
-- Suppose your VCF is Dama_gazelle_biallelic_snps_autosomes.vcf and samples are:
-- Addra: SRR17129394, SRR17134085, SRR17134086
-- Mhorr: SRR17134087, SRR17134088
-- Use bcftools view to create per-subspecies VCFs:
-
-#### Addra
-```bash
-echo -e "SRR17129394\nSRR17134085\nSRR17134086" > addra_samples.txt
-bcftools view -S addra_samples.txt Dama_gazelle_biallelic_snps_autosomes.vcf -Oz -o addra.vcf.gz
-bcftools index addra.vcf.gz
-#### Mhorr
-echo -e "SRR17134087\nSRR17134088" > mhorr_samples.txt
-bcftools view -S mhorr_samples.txt Dama_gazelle_biallelic_snps_autosomes.vcf -Oz -o mhorr.vcf.gz
-bcftools index mhorr.vcf.gz
-```
-- Step 2: Run VEP separately for Addra and Mhorr
-#### Addra
-  ```bash
-  singularity exec vep.sif vep \
-    --dir_cache /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/dummy_vep_cache\
-    --fasta /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Dama_gazelle_hifiasm-ULONT_primary.fasta \
-    --input_file /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/addra.vcf.gz \
-    --custom file=/scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Addra.withExons.gff.gz,short_name=ADDRA_EXONS,format=gff \
-    --output_file /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Addra_vep_biallelic_snps.txt \
-    --offline \
-    --everything \
-    --fork 8 \
-    --no_stats \
-    --quiet \
-    --buffer_size 10000
-```
-#### Mhorr
-```bash
-singularity exec vep.sif vep \
-    --dir_cache /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/dummy_vep_cache\
-    --fasta /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Dama_gazelle_hifiasm-ULONT_primary.fasta \
-    --input_file /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mhorr.vcf.gz \
-    --custom file=/scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mhorr.withExons.gff.gz,short_name=MHORR_EXONS,format=gff \
-    --output_file /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mhorr_vep_biallelic_snps.txt \
-    --offline \
-    --everything \
-    --fork 8 \
-    --no_stats \
-    --quiet \
-    --buffer_size 10000
-    ```
-#### Step 3: Extract high-impact genes for each subspecies
-```bash
-# Addra
-awk -F'\t' '($14 ~ /IMPACT=HIGH/ && $4 != "-") {print $4}' Addra_vep_biallelic_snps.txt | sort | uniq > Addra_HighImpact_Genes.txt
-
-# Mhorr
-awk -F'\t' '($14 ~ /IMPACT=HIGH/ && $4 != "-") {print $4}' Mhorr_vep_biallelic_snps.txt | sort | uniq > Mhorr_HighImpact_Genes.txt
-
-This gives you two clean gene lists ready for GO analysis: Use the name or ID of those gene list in the ShinyGo app.
-```
----------
 ### *About finding out which allele is deleterious
 - In a large population, deleterious variants will most likely be selected against, and will never reach high frequencies. 
 - Therefore it is often safe to assume that the _minor_ allele is the deleterious variant.
