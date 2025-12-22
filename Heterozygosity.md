@@ -11,51 +11,60 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=bistbs@miamioh.edu
 
-#Set variables
-# ANGSD executable (full path)
-ANGSD_EXE=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/Guam_rail_Population_Genomics/angsd
-REAL_SFS_EXE=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/Guam_rail_Population_Genomics/angsd/misc/realSFS"  # adjust if different
+# ----------------------------
+# Paths
+# ----------------------------
+ANGSD_EXE="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity/angsd/angsd"
+BAM_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled"
+OUTPUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity"
+REFERENCE="${BAM_DIR}/bHypOws1_hifiasm.bp.p_ctg.fasta"
 
-# Directories and reference files
-bam_dir="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled"
-output_dir="${bam_dir}/heterozygosity"
-ancestral_fasta="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/bHypOws1_hifiasm.bp.p_ctg.fasta"
-reference_fasta="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/bHypOws1_hifiasm.bp.p_ctg.fasta"
+# Make output directory
+mkdir -p "$OUTPUT_DIR"
 
-# Create output directory if it doesn't exist
-mkdir -p "$output_dir"
+# List of BAMs
+SAMPLES=("FMNH390989_downsampled.bam" "HOW_N23-0063_downsampled.bam" "HOW_N23-0568_downsampled.bam")
 
-# List of BAM files
-samples=("SRR17129394.bam" "SRR17134085.bam" "SRR17134086.bam" "SRR17134087.bam" "SRR17134088.bam")
+# Get scaffold names from the reference FASTA
+SCAFFOLDS=($(grep ">" "$REFERENCE" | sed 's/>//'))
 
-# Loop over each sample
-for bam_file in "${samples[@]}"; do
-    SAMPLE=$(basename "$bam_file" .bam)
-    
-    # Loop over autosomes 1-17 (matching FASTA headers)
-    for i in {1..17}; do
-        CHR="$i"
-        echo "[$(date)] Processing $SAMPLE chromosome $CHR..."
+# ----------------------------
+# Run ANGSD scaffold by scaffold
+# ----------------------------
+for SAMPLE_BAM in "${SAMPLES[@]}"; do
+    SAMPLE=$(basename "$SAMPLE_BAM" .bam)
+    BAM_PATH="${BAM_DIR}/${SAMPLE_BAM}"
+
+    for SCAF in "${SCAFFOLDS[@]}"; do
+        echo "[$(date)] Running ANGSD for $SAMPLE scaffold $SCAF..."
         
-        # Run ANGSD to calculate SAF
         $ANGSD_EXE -P 24 \
-            -i "${bam_dir}/${bam_file}" \
-            -anc "$ancestral_fasta" \
-            -ref "$reference_fasta" \
+            -i "$BAM_PATH" \
+            -anc "$REFERENCE" \
+            -ref "$REFERENCE" \
             -dosaf 1 \
             -gl 1 \
             -C 50 \
             -minQ 20 \
             -minmapq 30 \
-            -out "${output_dir}/${SAMPLE}.${CHR}" \
-            -r "$CHR"
-        
-        # Estimate folded SFS
-        $REAL_SFS_EXE -fold 1 "${output_dir}/${SAMPLE}.${CHR}.saf.idx" > "${output_dir}/${SAMPLE}.${CHR}.est.ml"
+            -out "${OUTPUT_DIR}/${SAMPLE}.${SCAF}" \
+            -r "$SCAF"
     done
 done
 
 echo "[$(date)] All ANGSD runs completed."
+```
+#### Running Folded Site Frequency Spectrum
+       REAL_SFS_EXE="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity/angsd/misc/realSFS"
+OUTPUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity"
+
+SAMPLES=("FMNH390989_downsampled" "HOW_N23-0063_downsampled" "HOW_N23-0568_downsampled")
+
+for SAMPLE in "${SAMPLES[@]}"; do
+    for i in {1..46}; do
+        SCAF="SUPER_${i}"
+        echo "Running realSFS for $SAMPLE scaffold $SCAF..."
+        
 ```
 
 - The next step is to add the sample name and the scaffold number for each line in our output.
