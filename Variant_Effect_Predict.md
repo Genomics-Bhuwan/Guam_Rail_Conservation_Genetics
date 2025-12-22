@@ -15,21 +15,7 @@
 - The annotation file further needs to be indexed with tabix.
 
 ##### Files and their paths is in:
-```bash
-cd /scratch/bistbs/Population_Genomic_Analysis/VEP 
-Reference genome: Dama_gazelle_hifiasm-ULONT_primary.fasta
-Addra annotation: Addra_complete.genomic.gff
-Mhorr annotation: Mohrr_complete.genomic.gff
-VCF (biallelic SNPs): Dama_gazelle_biallelic_snps_autosomes.vcf
-Individuals:
-  Addra: SRR17129394, SRR17134085, SRR17134086
-  Mhorr: SRR17134087, SRR17134088
-- Since, we are doing VEP and using referecne genome assembly of Addra. Therefore, we will only use Addra.gff. We could have also used Mhorr.gff but for easiness we will use Addra.gff.
-- VEP requires exons but my annotation has only CDS.
-- We will duplicate the CDS as exons.
-
-```
-#### a) Create a directory in your scratch to work in
+#### a) Create a directory in your directory to work in
 ```bash
 
 
@@ -56,38 +42,10 @@ module unload gcc/8.5.0
 module load htslib
 ```
 #### Sort file and add exons before compressing
-#### Prepare Addra GFF with exons, sort, compress and index
+#### Prepare Guam_rail GFF with exons, sort, compress and index
+- Taylor already did this for us.
 ```bash
-grep -v "#" Addra_complete.genomic.gff | \
-sort -k1,1 -k4,4n -k5,5n -t$'\t' | \
-awk -v OFS="\t" '{
-    if ($3=="CDS") {
-        print $0
-        $3="exon"
-        $8="."
-        print $0
-    } else { print $0 }
-}' | bgzip -c > Addra.withExons.gff.gz
-
-tabix -p gff Addra.withExons.gff.gz
-
-```
-
-- Do it for Mhorr gazelle
-```bash
-grep -v "#" /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mohrr_complete.genomic.gff | \
-sort -k1,1 -k4,4n -k5,5n -t$'\t' | \
-awk -v OFS="\t" '{
-    if ($3=="CDS") {
-        print $0
-        $3="exon"
-        $8="."
-        print $0
-    } else { print $0 }
-}' | bgzip -c > /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mhorr.withExons.gff.gz
-
-tabix -p gff /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mhorr.withExons.gff.gz
-
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail.withExons.gff.gz
 ```
 
 #### c) Prepare the vcf file
@@ -98,9 +56,7 @@ tabix -p gff /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mhorr
 -   It's upto you to decide if you want to include indels or not. I decided not.
 - Use vcftools to filter if needed.
   
-```bash
-/scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_biallelic_snps_autosomes.vcf
-```
+
 
 ### 2. Run the variant predictor
 - This code should be placed in a script and run as a job.
@@ -108,11 +64,11 @@ tabix -p gff /scratch/bistbs/Population_Genomic_Analysis/VEP/Gene_Ontology/Mhorr
 - For this test chromosome it only took a couple of minutes. 
 ```bash
 singularity exec vep.sif vep \
-    --dir_cache /scratch/bistbs/Population_Genomic_Analysis/VEP/dummy_vep_cache \
-    --fasta /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_hifiasm-ULONT_primary.fasta \
-    --input_file /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_biallelic_snps_autosomes.vcf \
-    --custom file=/scratch/bistbs/Population_Genomic_Analysis/VEP/Addra.withExons.gff.gz,short_name=ADDRA_EXONS,format=gff \
-    --output_file /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt \
+    --dir_cache /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/dummy_vep_cache \
+    --fasta /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/bHypOws1_hifiasm.bp.p_ctg.fasta \
+    --input_file /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_biallelic_snps.vcf.gz \
+    --custom file=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail.withExons.gff.gz,short_name=GUAM_RAIL_EXONS,format=gff \
+    --output_file /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt \
     --offline \
     --everything \
     --fork 8 \
@@ -121,7 +77,7 @@ singularity exec vep.sif vep \
     --buffer_size 10000
 ```
 
-##### Analyze the output
+##### Analyze the output ################################################################################
 
 ### 1. Familiarize yourself with the output
 - If VEP worked, it will produce two or three output files: vep_rail.txt, vep_rail.txt_summary.html and possibly vep_rail.txt_warnings.txt. 
@@ -135,14 +91,14 @@ singularity exec vep.sif vep \
 ##### (Grep -v removes the header lines: the ones that start with #)
 - The total annotated variants is:9435988
 ```bash
- grep -v "^#" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt | wc -l 
+ grep -v "^#" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt | wc -l 
 ```
 ##### How does this relate to the number variants in your input file?
 - Count the number of unique annotated variants
 - (cut -f1 extracts the first column only, uniq take only unique lines, and wc -l counts the lines)
 - 19,638 variants have multiple annotations and 9416350 had unqiue variants.
 ```bash
-grep -v "^#" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt | cut -f1 | uniq | wc -l
+grep -v "^#" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt | cut -f1 | uniq | wc -l
 
 ```
 ##### Many variants are annotated several times, for example if a gene has multiple transcripts, or if two genes are overlapping.
@@ -150,7 +106,7 @@ grep -v "^#" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_bi
 - (sort will sort the output in alphabetical order, and uniq -c will count all unique lines)
 - 3745 synonymous_variant or low impact variant.
 ```bash
-grep "IMPACT=LOW" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt  |cut -f7 |sort |uniq -c
+grep "IMPACT=LOW" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt  |cut -f7 |sort |uniq -c
 ```
 - Now you can do the same with for the other impact types.
 
@@ -162,11 +118,11 @@ grep "IMPACT=LOW" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_v
 # Extract variants with a high predicted impact.
 
 ```bash
-grep "IMPACT=HIGH" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt |cut -f2 |uniq >high_impact.pos.txt
+grep "IMPACT=HIGH" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq >high_impact.pos.txt
 ```
 - Now do the same for the non-synonymous variants or moderate effect variant.
 ```bash
-grep "IMPACT=MODERATE" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt |cut -f2 |uniq >moderate_impact.pos.txt
+grep "IMPACT=MODERATE" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq >moderate_impact.pos.txt
 ```
 - Are there any sites annotated as both HIGH and MODERATE? We can check this by joining the two files:
 ```bash
@@ -176,11 +132,11 @@ join <(sort high_impact.pos.txt) <(sort moderate_impact.pos.txt)
 - Re-run extracting moderate variants, removing positions overlapping with high impact
 - join -v1 will return all lines in file 1 not overlapping with file 2.
 ```bash
-grep "IMPACT=MODERATE" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt |cut -f2 |uniq |join -v1 <(sort -) <(sort high_impact.pos.txt) >moderate_impact.pos.txt
+grep "IMPACT=MODERATE" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq |join -v1 <(sort -) <(sort high_impact.pos.txt) >moderate_impact.pos.txt
 ```
 - We can do the same for the LOW impact variants, removing any overlaps with either of the two previous files.
 ```bash
-grep "IMPACT=LOW" /scratch/bistbs/Population_Genomic_Analysis/VEP/Dama_gazelle_vep_biallelic_snps.txt |cut -f2 |uniq |join -v1 <(sort -) <(sort high_impact.pos.txt) |join -v1 - <(sort moderate_impact.pos.txt) >low_impact.pos.txt
+grep "IMPACT=LOW" /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/VEP/Guam_rail_vep_biallelic_snps.txt |cut -f2 |uniq |join -v1 <(sort -) <(sort high_impact.pos.txt) |join -v1 - <(sort moderate_impact.pos.txt) >low_impact.pos.txt
 ```
 
 #### If we want to extract the variants from the vcf file using vcftools, we need tab separated positions files. 
