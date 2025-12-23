@@ -461,6 +461,9 @@ merqury_trio_output
 -  you can either use an interactive node or a job file.
 ---
 #### Job file: repeatmodeler_database.job
+- Go to RepeatMOdeler. Download all those 7-8 needed softwares in your resepctive folder of RepeatModeler. Unzip them and put their path in the perl configure.
+- Once, that is done you will be able to run that smoothly.
+- Basically, it is all about the setting all those softwares in perl configure.
 ```
 # Run from the RepeatModeler directory
 perl ./BuildDatabase -name Guam_rail /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Repeat_Modeler/bHypOws1_hifiasm.bp.p_ctg.fasta
