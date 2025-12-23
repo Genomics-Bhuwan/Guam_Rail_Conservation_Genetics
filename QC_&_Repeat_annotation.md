@@ -174,7 +174,7 @@ for f in nt.*.tar.gz; do
 done
 
 # Make the BLAST database
-# Others are using driectly from blastn. You can try with makeblastdb or directly to from blastn.
+# Others are using driectly from blastn. You can try with makeblastdb or directly from blastn.
 makeblastdb -in nt -dbtype nucl -parse_seqids -out nt
 ```
 #### Once the database is made, run using blastn to get the output of "Guam_Rail_blast.out".
@@ -439,6 +439,10 @@ merqury_trio_output
 - merqury_trio_output.completeness.stats → completeness of each haplotype
 - .bed and .wig tracks for IGV/UCSC
 - Plots in .jpeg format for visual inspection
+
+
+
+
 ---
 ##### Masking and annotating repetitive elements with Repeatmodeler and RepeatMasker
 ---
@@ -457,16 +461,11 @@ merqury_trio_output
 -  you can either use an interactive node or a job file.
 ---
 #### Job file: repeatmodeler_database.job
-- Queue: medium
-- PE: multi-thread
-- Number of CPUs: 1
-- Memory: 10G
-- Module: `module load bio/repeatmodeler`
-- Commands:
-
 ```
-BuildDatabase -name Guam_rail /path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta
-# usage:BuildDatabase -name {database_name} {genome_file-in_fasta_format}
+# Run from the RepeatModeler directory
+perl ./BuildDatabase -name Guam_rail /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Repeat_Modeler/bHypOws1_hifiasm.bp.p_ctg.fasta
+
+
 ```
 ##### Explanation:
 ```
@@ -479,20 +478,10 @@ genome file in fasta format
 
 The second step is two actually run RepeatModeler. Again this can take several days depending on the genome size.
 
-#### Job file: repeatmodeler_Guam_Rail.job
-- Queue: high
-- PE: multi-thread
-- Number of CPUs: 36
-- Memory: 10G
-- Module: `module load bio/repeatmodeler`
-- Commands:
+#### Job file: repeatmodeler_Guam_Rail.job```bash
+nohup perl ./RepeatModeler -database Guam_rail -threads 20 -LTRStruct > guam_rail_final_run_v2.log 2>&1 &
 
 ```
-# Usage: RepeatModeler -database {database_name} -pa {number of cores} -LTRStruct > out.log
-RepeatModeler -database Guam_rail -threads 36 -engine ncbi -LTRStruct  > repeatmodeler_GR_out.log
-
-```
-
 ##### Explanation:
 ```
 -database: The prefix name of a XDF formatted sequence database containing the genomic sequence to use when building repeat models.
@@ -501,21 +490,11 @@ RepeatModeler -database Guam_rail -threads 36 -engine ncbi -LTRStruct  > repeatm
 #Note the new version of repeatmodeler calls another program called LTRStruct.
 -LTRStruct: enables the optional LTR structural finder.
 ```
-
 ##### Output files:
 - consensi.fa.classified: complete database to be used in RepeatMasker.
-
 The last step to get a repeat annotation is to run ReapeatMasker. 
 
-
 #### Job file: repeatmasker_Guam_Rail.job
-- Queue: high
-- PE: multi-thread
-- Number of CPUs: 30
-- Memory: 10G
-- Module: `module load bio/repeatmodeler`
-- Commands:
-
 ```
 # usage: RepeatMasker -pa 30 -gff -lib {consensi_classified} -dir {dir_name} {genome_in_fasta}
 
@@ -613,3 +592,72 @@ p=true i=<REFERENCE_ID> a=NCBI/GCF_XXXX_genomic.gff.gz g=NCBI/GCF_XXXX_genomic.f
 ```
 * GeMoMa pipeline is extremely complex with many parameter for each of the module. Here is the full description of the paramenter for the pipeline script but also for each of the modules. [link to GeMoMa documentation](http://www.jstacs.de/index.php/GeMoMa-Docs)
 
+
+
+
+
+
+
+
+############################################################
+############################
+#!/bin/bash -l
+#SBATCH --job-name=RepeatModeler
+#SBATCH --time=200:00:00
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=128G
+#SBATCH --partition=batch
+#SBATCH --output=RepeatModeler_%A.log
+
+#!/bin/bash -l
+#SBATCH --job-name=RepeatModeler
+#SBATCH --time=200:00:00
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=128G
+#SBATCH --partition=batch
+#SBATCH --output=RepeatModeler_%A.log
+
+# -------------------------------
+# Paths
+# -------------------------------
+SOFTWARE_DIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Repeat_Modeler/software
+REPEATMODEL_PATH=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Repeat_Modeler/RepeatModeler
+
+# Genome file
+GENOME=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Repeat_Modeler/bHypOws1_hifiasm.bp.p_ctg.fasta
+DB_NAME=Guam_rail
+
+# -------------------------------
+# Environment setup
+# -------------------------------
+echo "Setting up environment..."
+
+# Use system Perl
+export PATH=/usr/bin:$PATH
+# Remove bundled Perl references
+# export PATH=$SOFTWARE_DIR/perl-5.42.0/bin:$PATH
+# export PERL5LIB=$SOFTWARE_DIR/perl-5.42.0/lib
+
+# Ensure RepeatModeler dependencies are in PATH
+export PATH=$SOFTWARE_DIR/RECON-1.08:$SOFTWARE_DIR/RepeatScout-1.0.7:$SOFTWARE_DIR/rmblast-2.14.1:$SOFTWARE_DIR/TRF-4.09.1:$PATH
+
+# -------------------------------
+# Make scripts executable
+# -------------------------------
+echo "Making RepeatModeler scripts executable..."
+chmod +x $REPEATMODEL_PATH/BuildDatabase
+chmod +x $REPEATMODEL_PATH/RepeatModeler
+
+# -------------------------------
+# Build RepeatModeler database
+# -------------------------------
+echo "Building RepeatModeler database..."
+$REPEATMODEL_PATH/BuildDatabase -name $DB_NAME $GENOME
+echo "Database built successfully."
+
+# -------------------------------
+# Run RepeatModeler
+# -------------------------------
+echo "Running RepeatModeler with 24 threads and LTR pipeline..."
+nohup $REPEATMODEL_PATH/RepeatModeler -database $DB_NAME -pa 24 -LTRStruct >& RepeatModeler_run.log &
+echo "RepeatModeler job started. Logs will be written to RepeatModeler_run.log"
