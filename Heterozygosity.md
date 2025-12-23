@@ -55,91 +55,126 @@ done
 echo "[$(date)] All ANGSD runs completed."
 ```
 #### Running Folded Site Frequency Spectrum
-       REAL_SFS_EXE="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity/angsd/misc/realSFS"
-OUTPUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity"
+     ```bash
+      REAL_SFS_EXE="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity/angsd/misc/realSFS"
 
-SAMPLES=("FMNH390989_downsampled" "HOW_N23-0063_downsampled" "HOW_N23-0568_downsampled")
+INPUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity"
+
+OUTPUT_DIR="${INPUT_DIR}/realSFS_new"
+mkdir -p "$OUTPUT_DIR"
+
+SAMPLES=(
+  "FMNH390989_downsampled"
+  "HOW_N23-0063_downsampled"
+  "HOW_N23-0568_downsampled"
+)
 
 for SAMPLE in "${SAMPLES[@]}"; do
-    for i in {1..46}; do
-        SCAF="SUPER_${i}"
-        echo "Running realSFS for $SAMPLE scaffold $SCAF..."
-        
+  echo "Processing sample: $SAMPLE"
+
+  for SAFIDX in ${INPUT_DIR}/${SAMPLE}.ptg*.saf.idx; do
+    BASENAME=$(basename "$SAFIDX" .saf.idx)
+
+    # Each scaffold in its own folder inside the new output directory
+    RUN_DIR="${OUTPUT_DIR}/${SAMPLE}/${BASENAME}"
+    mkdir -p "$RUN_DIR"
+    cd "$RUN_DIR" || exit 1
+
+    echo "  Running realSFS on $BASENAME"
+
+    $REAL_SFS_EXE \
+      "$SAFIDX" \
+      -P 8 \
+      -maxIter 100 \
+      > "${BASENAME}.sfs"
+
+  done
+done
 ```
+        
 
 - The next step is to add the sample name and the scaffold number for each line in our output.
 - This will make our work easier when we want to plot our results.
 
 ```bash
-#!/bin/bash
 
-# ----------------------------
-# Annotate realSFS output files with number of lines, sample name, and scaffold
-# ----------------------------
+# Directory containing realSFS output
+OUTPUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity/realSFS_new"
 
-output_dir="/scratch/bistbs/Population_Genomic_Analysis/PSMC/heterozygosity"
+# List of samples
+SAMPLES=(
+  "FMNH390989_downsampled"
+  "HOW_N23-0063_downsampled"
+  "HOW_N23-0568_downsampled"
+)
 
-# List of BAM/sample names (without .bam)
-samples=("SRR17129394" "SRR17134085" "SRR17134086" "SRR17134087" "SRR17134088")
+for SAMPLE in "${SAMPLES[@]}"; do
+    SAMPLE_DIR="${OUTPUT_DIR}/${SAMPLE}"
+    echo "Processing sample: $SAMPLE"
 
-# Loop over each sample
-for SAMPLE in "${samples[@]}"; do
-    echo "[$(date)] Annotating $SAMPLE files..."
+    # Loop over scaffold directories for this sample
+    for SCAF_DIR in "${SAMPLE_DIR}"/*; do
+        if [ -d "$SCAF_DIR" ]; then
+            input_file="${SCAF_DIR}/$(basename "$SCAF_DIR").est.ml"
+            output_file="${SCAF_DIR}/$(basename "$SCAF_DIR").est.ml.annotated"
 
-    # Loop over scaffolds 1 to 17
-    for i in {1..17}; do
-        input_file="${output_dir}/${SAMPLE}.${i}.est.ml"
-        output_file="${output_dir}/${SAMPLE}.${i}.est.ml.annotated"
+            if [ -f "$input_file" ]; then
+                # Count number of lines
+                num_lines=$(wc -l < "$input_file")
 
-        if [ -f "$input_file" ]; then
-            # Count number of lines
-            num_lines=$(wc -l < "$input_file")
+                # Annotate each line with line count, sample, and scaffold
+                awk -v lines="$num_lines" -v sample="$SAMPLE" -v scaffold="$(basename "$SCAF_DIR")" \
+                    '{print lines, sample, scaffold, $0}' "$input_file" > "$output_file"
 
-            # Annotate each line with line count, sample, and scaffold
-            awk -v lines="$num_lines" -v sample="$SAMPLE" -v scaffold="$i" '{print lines, sample, scaffold, $0}' "$input_file" > "$output_file"
+                # Replace original file with annotated version
+                mv "$output_file" "$input_file"
 
-            # Replace original file with annotated version
-            mv "$output_file" "$input_file"
-
-            echo "[$(date)] Annotated $input_file"
-        else
-            echo "[$(date)] WARNING: File $input_file not found, skipping."
+                echo "[$(date)] Annotated $input_file"
+            else
+                echo "[$(date)] WARNING: File $input_file not found, skipping."
+            fi
         fi
     done
 done
 
 echo "[$(date)] All annotation completed!"
-Concatenate files
 
-#!/bin/bash
 
-# ----------------------------
-# Concatenate all realSFS output files for a given sample
-# ----------------------------
+```
 
-input_directory="/scratch/bistbs/Population_Genomic_Analysis/PSMC/heterozygosity"
-output_directory="/scratch/bistbs/Population_Genomic_Analysis/PSMC/heterozygosity/concatenated"
-mkdir -p "$output_directory"
-
-# Output file
-output_file="${output_directory}/all_samples_est_ml_concatenated.txt"
+#### Concatenate all realSFS output files for a given sample.
+# Base directories
+```bash
+OUTPUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Guam_rail_Population_Genomics/heterozygosity/realSFS_new"
+OUTPUT_FILE="${OUTPUT_DIR}/all_samples_est_ml_concatenated.txt"
 
 # Remove output file if it already exists
-[ -f "$output_file" ] && rm "$output_file"
+[ -f "$OUTPUT_FILE" ] && rm "$OUTPUT_FILE"
 
 # List of samples
-samples=("SRR17129394" "SRR17134085" "SRR17134086" "SRR17134087" "SRR17134088")
+SAMPLES=(
+  "FMNH390989_downsampled"
+  "HOW_N23-0063_downsampled"
+  "HOW_N23-0568_downsampled"
+)
 
-# Loop over each sample and scaffold 1-17
-for SAMPLE in "${samples[@]}"; do
-    for i in {1..17}; do
-        input_file="${input_directory}/${SAMPLE}.${i}.est.ml"
-        if [ -f "$input_file" ]; then
-            cat "$input_file" >> "$output_file"
-        else
-            echo "WARNING: $input_file not found, skipping."
+# Loop over samples and scaffold directories
+for SAMPLE in "${SAMPLES[@]}"; do
+    SAMPLE_DIR="${OUTPUT_DIR}/${SAMPLE}"
+    for SCAF_DIR in "${SAMPLE_DIR}"/*; do
+        if [ -d "$SCAF_DIR" ]; then
+            input_file="${SCAF_DIR}/$(basename "$SCAF_DIR").est.ml"
+
+            if [ -f "$input_file" ]; then
+                cat "$input_file" >> "$OUTPUT_FILE"
+                echo "[$(date)] Added $input_file to concatenated file"
+            else
+                echo "[$(date)] WARNING: File $input_file not found, skipping."
+            fi
         fi
     done
 done
 
-echo "All files concatenated into $output_file"
+echo "[$(date)] Concatenation step completed!"
+echo "Concatenated file: $OUTPUT_FILE"
+```
