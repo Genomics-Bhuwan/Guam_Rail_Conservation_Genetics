@@ -167,15 +167,18 @@ This will generate a .png file of your BUSCO results, which visually summarizes 
 - Make sure your blatn is loaded or you have installed it properly. It is so much important.
 #### First I am making the BLAST database with output "nt"
 ```bash
-cd /shared/jezkovt_bistbs_shared/BLAST_DB/nt/
+cd /localscratch/bistbs/Blobtools/nt
 
 for f in nt.*.tar.gz; do
     tar -xvzf "$f"
 done
+```
+#### Make the BLAST database
+- Others are using driectly from blastn. You can try with makeblastdb or directly from blastn.
+```bash
 
-# Make the BLAST database
-# Others are using driectly from blastn. You can try with makeblastdb or directly from blastn.
 makeblastdb -in nt -dbtype nucl -parse_seqids -out nt
+
 ```
 #### Once the database is made, run using blastn to get the output of "Guam_Rail_blast.out".
 ```bash
