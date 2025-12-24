@@ -1,18 +1,4 @@
-# Genome assembly QC and Genome annotation - SMSC
-
-<!-- TOC depthFrom:2 -->
-
- * [Folder structure](#Folder-structure)
- * [Input file](#Input-file)
- * [Run BUSCO](#Run-BUSCO)
- * [Run Blobtools](#Run-Blobtools)
- * [Run Blobtools2](#Run-Blobtools2)
- * [Run Merqury](#Run-Merqury)
- * [Masking and annotating repetitive elements with Repeatmodeler and RepeatMasker](#Masking-and-annotating-repetitive-elements-with-Repeatmodeler-and-RepeatMasker)
- * [Running GeMoMa](#Running-GeMoMa)
-
-
-<!-- /TOC -->
+#### Genome assembly QC and Genome annotation 
 
 ### Folder structure
 
