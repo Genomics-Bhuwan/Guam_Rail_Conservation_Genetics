@@ -183,14 +183,15 @@ makeblastdb -in nt -dbtype nucl -parse_seqids -out nt
 #### Once the database is made, run using blastn to get the output of "Guam_Rail_blast.out".
 ```bash
 blastn \
-  -db /shared/jezkovt_bistbs_shared/BLAST_DB/nt/nt \
-  -query /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Blobtools/bHypOws1_hifiasm.bp.p_ctg.fasta \
+  -db /localscratch/bistbs/Blobtools/nt/nt \
+  -query /localscratch/bistbs/Blobtools/bHypOws1_hifiasm.bp.p_ctg.fasta \
   -outfmt "6 qseqid staxids bitscore std" \
   -max_target_seqs 20 \
   -max_hsps 1 \
   -evalue 1e-20 \
   -num_threads 24 \
-  -out /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Blobtools/Guam_Rail_blast.out
+  -out /localscratch/bistbs/Blobtools/Guam_Rail_blast.out
+
 ```
 ##### Explanation for the blast
 -db: ncbi nucleotide database that I downloaded
