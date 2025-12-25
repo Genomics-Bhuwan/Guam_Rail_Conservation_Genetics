@@ -549,8 +549,32 @@ In General GeMoMa workflow performs 7 stepts: Extract RNA-seq evidence (ERE), De
 
 
 ```
-set maxHeapSize 400000
-GeMoMa -Xmx400G GeMoMaPipeline threads=$NSLOTS GeMoMa.Score=ReAlign AnnotationFinalizer.r=NO p=true o=true t=/path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta.gz outdir=output/ s=own i=G_gallus a=ref_genomes/Gallus_gallus/GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b_genomic.gff.gz g=ref_genomes/Gallus_gallus/GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b_genomic.fna.gz s=own i=A_rogersi a=ref_genomes/Atlantisia_rogersi/GCA_013401215.1_ASM1340121v1_genomic.gff.gz g=ref_genomes/Atlantisia_rogersi/GCA_013401215.1_ASM1340121v1_genomic.fna.gz s=own i=F_peregrinus a=ref_genomes/Falco_peregrinus/GCF_023634155.1_bFalPer1.pri_genomic.gff.gz g=ref_genomes/Falco_peregrinus/GCF_023634155.1_bFalPer1.pri_genomic.fna.gz s=own i=S_habroptila a=ref_genomes/Strigops_habroptila/GCF_004027225.2_bStrHab1.2.pri_genomic.gff.gz g=ref_genomes/Strigops_habroptila/GCF_004027225.2_bStrHab1.2.pri_genomic.fna.gz s=own i=Z_atra a=ref_genomes/Zapornia_atra/GCA_013400835.1_ASM1340083v1_genomic.gff.gz g=ref_genomes/Zapornia_atra/GCA_013400835.1_ASM1340083v1_genomic.fna.gz s=own i=Z_finch a=ref_genomes/Zebra_finch/GCF_003957565.2_bTaeGut1.4.pri_genomic.gff.gz g=ref_genomes/Zebra_finch/GCF_003957565.2_bTaeGut1.4.pri_genomic.fna.gz
+java -Xmx400G -Djava.awt.headless=true -jar GeMoMa-1.9.jar CLI GeMoMaPipeline \
+  threads=24 \
+  outdir=output/ \
+  t="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/GeMoMa/bHypOws1_hifiasm.bp.p_ctg.fasta" \
+  GeMoMa.Score=ReAlign \
+  AnnotationFinalizer.r=NO \
+  p=true \
+  o=true \
+  s=own i=G_gallus \
+    a="ref_genomes/Gallus_gallus/GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b_genomic.gff.gz" \
+    g="ref_genomes/Gallus_gallus/GCF_016699485.2_bGalGal1.mat.broiler.GRCg7b_genomic.fna.gz" \
+  s=own i=A_rogersi \
+    a="ref_genomes/Atlantisia_rogersi/GCA_013401215.1_ASM1340121v1_genomic.gff.gz" \
+    g="ref_genomes/Atlantisia_rogersi/GCA_013401215.1_ASM1340121v1_genomic.fna.gz" \
+  s=own i=F_peregrinus \
+    a="ref_genomes/Falco_peregrinus/GCF_023634155.1_bFalPer1.pri_genomic.gff.gz" \
+    g="ref_genomes/Falco_peregrinus/GCF_023634155.1_bFalPer1.pri_genomic.fna.gz" \
+  s=own i=S_habroptila \
+    a="ref_genomes/Strigops_habroptila/GCF_004027225.2_bStrHab1.2.pri_genomic.gff.gz" \
+    g="ref_genomes/Strigops_habroptila/GCF_004027225.2_bStrHab1.2.pri_genomic.fna.gz" \
+  s=own i=Z_atra \
+    a="ref_genomes/Zapornia_atra/GCA_013400835.1_ASM1340083v1_genomic.gff.gz" \
+    g="ref_genomes/Zapornia_atra/GCA_013400835.1_ASM1340083v1_genomic.fna.gz" \
+  s=own i=Z_finch \
+    a="ref_genomes/Zebra_finch/GCF_003957565.2_bTaeGut1.4.pri_genomic.gff.gz" \
+    g="ref_genomes/Zebra_finch/GCF_003957565.2_bTaeGut1.4.pri_genomic.fna.gz"
 ```
 
 ##### Explanation:
