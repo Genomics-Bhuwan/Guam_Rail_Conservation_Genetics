@@ -23,39 +23,53 @@ mkdir psmc
 - Although the command for this step is relatively old, it still functions effectively.
 - However, it is important to ensure that the command is still operational and functioning correctly before proceeding.
 ```bash
-  #!/bin/bash -l
-#SBATCH --job-name=PSMC
-#SBATCH --time=300:00:00
+ #!/bin/bash -l
+#SBATCH --job-name=PSMC_Guamrail
+#SBATCH --time=100:00:00
 #SBATCH --cpus-per-task=10
-#SBATCH --mem=128G
+#SBATCH --mem=90G
 #SBATCH --partition=batch
-#SBATCH --output=psmc_all_samples.log   # Single combined output file
+#SBATCH --array=0-2                    # One task per sample (3 samples)
+#SBATCH --output=/shared/jezkovt_bistbs_shared/Guam_Rail/PSMC_Guamrail/PSMC_%a.log
+#SBATCH --error=/shared/jezkovt_bistbs_shared/Guam_Rail/PSMC_Guamrail/PSMC_%a.err
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=bistbs@miamioh.edu
-#SBATCH --array=0-4  # Array job for 5 samples
 
-module load bcftools-1.15
+# Load modules
 module load samtools-1.22.1
+module load bcftools-1.15
 
-# Reference genome
+# --------------------------
+# Paths
+# --------------------------
+WORKDIR=/shared/jezkovt_bistbs_shared/Guam_Rail/PSMC_Guamrail
+mkdir -p $WORKDIR
+cd $WORKDIR
+
 REF=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/bHypOws1_hifiasm.bp.p_ctg.fasta
 
-# List of BAM files (in the same order as the array)
-BAMS=(HOW_N23-0063_downsampled.bam HOW_N23-0568_downsampled.bam FMNH390989_downsampled.bam)
+# List of BAM files
+BAMS=(
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/FMNH390989_downsampled.bam
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/HOW_N23-0063_downsampled.bam
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/HOW_N23-0568_downsampled.bam
+)
 
-# Select BAM based on array index
+# Select BAM based on SLURM_ARRAY_TASK_ID
 BAM=${BAMS[$SLURM_ARRAY_TASK_ID]}
 SAMPLE=$(basename $BAM .bam)
 
 echo "Processing sample $SAMPLE ..."
 
-# Generate consensus FASTQ (full paths to avoid environment issues)
-/software/bcftools/1.15/bin/bcftools mpileup -Ou -f $REF $BAM | \
-/software/bcftools/1.15/bin/bcftools call -c | \
-/software/bcftools/1.15/bin/vcfutils.pl vcf2fq -d 10 -D 100 | \
-gzip > ${SAMPLE}.fq.gz 2>&1
+# --------------------------
+# Step 1: Generate consensus FASTQ
+# --------------------------
+bcftools mpileup -Ou -f $REF $BAM | \
+bcftools call -c | \
+vcfutils.pl vcf2fq -d 10 -D 100 > ${SAMPLE}.fq
 
-echo "Consensus FASTQ generated for $SAMPLE"
+echo "Consensus FASTQ generated: ${WORKDIR}/${SAMPLE}.fq"
+
 ```
 
 1. `bcftools mpileup -C50 -uf <reference_genome> <bam_file>`: This command generates a textual pileup format of the input BAM file (`<bam_file>`) using the given reference genome (`<reference_genome>`). The `C50` option applies a coefficient to adjust the base alignment quality, and the `u` flag outputs the results in the uncompressed BCF format, which is required for piping to `bcftools`. The `f` flag specifies the reference genome file.
