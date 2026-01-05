@@ -1,18 +1,8 @@
 #### How to do PSMC analyses?
 - The PSMC is a pairwise sequential markovian coalescent model used for infering the effective population size or genetic diversity of the species based on the demographic history of the species.
 - It is based on coalescent theory helping understand how genetic diversity is shaped by the history of a population in a pairwise fashion.
-
----
-Assumptions
----
-- I already have one BAM per individual in */scratch/bistbs/Population_Genomic_Analysis/PSMC/*, named exactly as the sample IDs (e.g. SRR17129394.bam, etc.).
-- Reference FASTA is available and indexed at REF_FA=/scratch/bistbs/Population_Genomic_Analysis/PSMC/Dama_gazelle_hifiasm-ULONT_primary.fasta 
-- bcftools, samtools, psmc and vcfutils.pl are available via module load.
-- The script will produce gziped fq, psmcfa, psmc output and bootstrap results in the results/ directory.
-
-##### Find our the generation time and mutation rate of your species.
-Generation time= 5.85 years (https://onlinelibrary.wiley.com/doi/full/10.1002/ece3.10876)
-We use generation time GEN=5.85 years and mutation rate MU=2.96E-09 per site per year. (science.sciencemag.org/content/364/6446/eaav6202/suppl/DC1).
+- mu <- 1.45e-8
+- g  <- 3.4
 
 ```bash
 mkdir psmc
@@ -303,83 +293,6 @@ done
 echo "All PSMC plots completed."
 
 ```
-
-##### 5.B. Multiple sample plot or the PSCM curves
-
-```bash
-# Step 1 — Create a combined plotting directory
-mkdir -p /scratch/bistbs/Population_Genomic_Analysis/PSMC/PSMC_results/combined_plot
-
-# Step 2 — Copy all combined PSMC files into this folder
-cd /scratch/bistbs/Population_Genomic_Analysis/PSMC/PSMC_results/combined_plot
-
-cp ../SRR17129394/SRR17129394.combined.psmc .
-cp ../SRR17134085/SRR17134085.combined.psmc .
-cp ../SRR17134086/SRR17134086.combined.psmc .
-cp ../SRR17134087/SRR17134087.combined.psmc .
-cp ../SRR17134088/SRR17134088.combined.psmc .
-
-# Step 3 — Create names file (recommended)
-This file assigns custom colors & sample labels.
-
-Create the file names.txt:
-
-SRR17129394   Addra_1
-SRR17134085   Addra_2
-SRR17134086   Addra_3
-SRR17134087   Mhorr_1
-SRR17134088   Mhorr_2
-
-(You can customize labels however you want.)
-
-⚡ Step 4 — Run ONE command to generate the combined multi-sample plot
-
-Use psmc_plot.pl with multiple inputs:
-
-PSMC_PLOT_BIN=/scratch/bistbs/Population_Genomic_Analysis/PSMC/psmc/utils/psmc_plot.pl
-
-GEN=5.85
-MU=2.96e-09
-
-cd /scratch/bistbs/Population_Genomic_Analysis/PSMC/PSMC_results/combined_plot
-
-$PSMC_PLOT_BIN \
-   -g $GEN -u $MU -X 1000000 \
-   -M names.txt \
-   combined_plot \
-   SRR17129394.combined.psmc \
-   SRR17134085.combined.psmc \
-   SRR17134086.combined.psmc \
-   SRR17134087.combined.psmc \
-   SRR17134088.combined.psmc
-
-🎉 Output
-
-Inside combined_plot/ you will get:
-
-combined_plot.eps
-combined_plot.pdf
-combined_plot.svg
-combined_plot.png
-
-This one figure contains all 5 PSMC curves, each in a different color, with labels from your names.txt.
-
-Want species-colored curves?
-
-I can also generate:
-
-Addra = blue
-
-Mhorr = red
-
-Custom line widths
-
-Custom legend names
-
-Export in publication-ready format
-
-Just tell me!
-````
 
 #### Plotting using R
 ```bash
