@@ -29,48 +29,58 @@ mkdir psmc
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=90G
 #SBATCH --partition=batch
-#SBATCH --array=0-2                    # One task per sample (3 samples)
-#SBATCH --output=/shared/jezkovt_bistbs_shared/Guam_Rail/PSMC_Guamrail/PSMC_%a.log
-#SBATCH --error=/shared/jezkovt_bistbs_shared/Guam_Rail/PSMC_Guamrail/PSMC_%a.err
+#SBATCH --array=0-2
+#SBATCH --output=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_%a.log
+#SBATCH --error=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_%a.err
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=bistbs@miamioh.edu
 
+# --------------------------
 # Load modules
+# --------------------------
 module load samtools-1.22.1
 module load bcftools-1.15
 
 # --------------------------
-# Paths
+# Reference genome
 # --------------------------
-WORKDIR=/shared/jezkovt_bistbs_shared/Guam_Rail/PSMC_Guamrail
-mkdir -p $WORKDIR
-cd $WORKDIR
-
 REF=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/bHypOws1_hifiasm.bp.p_ctg.fasta
 
-# List of BAM files
+# --------------------------
+# Output directory (PSMC FASTQs)
+# --------------------------
+OUTDIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail
+mkdir -p $OUTDIR
+cd $OUTDIR
+
+# --------------------------
+# BAM files
+# --------------------------
 BAMS=(
 /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/FMNH390989_downsampled.bam
 /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/HOW_N23-0063_downsampled.bam
 /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/HOW_N23-0568_downsampled.bam
 )
 
-# Select BAM based on SLURM_ARRAY_TASK_ID
 BAM=${BAMS[$SLURM_ARRAY_TASK_ID]}
 SAMPLE=$(basename $BAM .bam)
 
-echo "Processing sample $SAMPLE ..."
+echo "Processing sample: $SAMPLE"
+echo "Log file: PSMC_${SLURM_ARRAY_TASK_ID}.log"
+echo "Error file: PSMC_${SLURM_ARRAY_TASK_ID}.err"
 
 # --------------------------
-# Step 1: Generate consensus FASTQ
+# Generate consensus FASTQ
 # --------------------------
 bcftools mpileup -Ou -f $REF $BAM | \
 bcftools call -c | \
 vcfutils.pl vcf2fq -d 10 -D 100 > ${SAMPLE}.fq
 
-echo "Consensus FASTQ generated: ${WORKDIR}/${SAMPLE}.fq"
-
+echo "Consensus FASTQ generated:"
+echo "${OUTDIR}/${SAMPLE}.fq"
 ```
+
+
 
 1. `bcftools mpileup -C50 -uf <reference_genome> <bam_file>`: This command generates a textual pileup format of the input BAM file (`<bam_file>`) using the given reference genome (`<reference_genome>`). The `C50` option applies a coefficient to adjust the base alignment quality, and the `u` flag outputs the results in the uncompressed BCF format, which is required for piping to `bcftools`. The `f` flag specifies the reference genome file.
 2. `bcftools call -c`: This command performs variant calling on the input data received from the `bcftools mpileup` command (indicated by `` as input). The `c` option uses the consensus caller, which is suitable for calling a diploid consensus sequence.
