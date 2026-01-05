@@ -166,12 +166,58 @@ echo "PSMC preprocessing complete for $SAMPLE"
 - p "4+25*2+4+6": This flag sets the time intervals (p) for the PSMC model. The specified pattern, "4+25*2+4+6", means that there are 4 intervals of equal size at the start, followed by 25 intervals with twice the size of the previous intervals, and then 4 more intervals of equal size, and finally 6 more intervals of increasing size. This allows the model to have higher time resolution near the present and lower resolution in the more distant past.
 o <output.psmc>: This flag specifies the output file name for the PSMC results. Replace <output.psmc> with the desired output file name.
 <input.psmcfa>: This is the input file in PSMCFA format, which contains the sequence data to be analyzed. Replace <input.psmcfa> with the name of the input file.
-```bash
-$PSMC_BIN -N25 -t15 -r5 -p "4+25*2+4+6" \
-    -o $OUTDIR/${SAMPLE}.psmc \
-    $OUTDIR/${SAMPLE}.psmcfa
 
-echo "Main PSMC done."
+```bash
+#!/bin/bash -l
+#SBATCH --job-name=PSMC_run
+#SBATCH --time=48:00:00
+#SBATCH --cpus-per-task=10
+#SBATCH --mem=128G
+#SBATCH --partition=batch
+#SBATCH --array=0-2
+#SBATCH --output=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/PSMC_results/Results/PSMC_run_%A_%a.log
+#SBATCH --error=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/PSMC_results/Results/PSMC_run_%A_%a.err
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=bistbs@miamioh.edu
+
+# --------------------------
+# PSMC binary
+# --------------------------
+PSMC_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/psmc/psmc
+
+# --------------------------
+# Input/output directories
+# --------------------------
+FQDIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail
+OUTDIR=${FQDIR}/PSMC_results/Results
+mkdir -p $OUTDIR
+
+# --------------------------
+# Samples
+# --------------------------
+SAMPLES=(
+FMNH390989_downsampled
+HOW_N23-0063_downsampled
+HOW_N23-0568_downsampled
+)
+
+SAMPLE=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
+
+echo "========================================"
+echo "Running PSMC for sample: $SAMPLE"
+echo "Input PSMCFA: ${FQDIR}/PSMC_results/${SAMPLE}.psmcfa"
+echo "Output PSMC: ${OUTDIR}/${SAMPLE}.psmc"
+echo "========================================"
+
+# --------------------------
+# Run main PSMC
+# --------------------------
+$PSMC_BIN -N25 -t15 -r5 -p "4+25*2+4+6" \
+    -o ${OUTDIR}/${SAMPLE}.psmc \
+    ${FQDIR}/PSMC_results/${SAMPLE}.psmcfa
+
+echo "Main PSMC done for $SAMPLE."
+
 ```
 ##### Step 4: Bootstrap the samples(100)
 - I ran individual batch script for each of the 5 samples using command below. 
@@ -227,7 +273,7 @@ echo "Bootstrapping completed for $SAMPLE"
 PSMC_PLOT_BIN=/scratch/bistbs/Population_Genomic_Analysis/PSMC/psmc/utils/psmc_plot.pl
 
 # Generation time & mutation rate
-GEN=5.85
+GEN=3.4
 MU=2.96e-09
 
 # List of your sample directories
@@ -334,4 +380,215 @@ Export in publication-ready format
 
 Just tell me!
 ````
+
+#### Plotting using R
+```bash
+################################################################################
+# Guam Rail PSMC plotting
+# MAIN plot + per-individual bootstrap plots
+################################################################################
+
+library(ggplot2)
+library(dplyr)
+
+# ------------------------------------------------------------------
+# Working directory
+# ------------------------------------------------------------------
+setwd("F:/Collaborative_Projects/Guam_Rail/PSMC")
+
+# ------------------------------------------------------------------
+# SOURCE PSMC FUNCTIONS
+# ------------------------------------------------------------------
+source("plotPsmc.r")
+
+# ------------------------------------------------------------------
+# Parameters (Guam Rail)
+# ------------------------------------------------------------------
+mu <- 1.45e-8
+g  <- 3.4
+
+# ------------------------------------------------------------------
+# Sample IDs (must match filenames exactly)
+# ------------------------------------------------------------------
+ordered_ids <- c(
+  "FMNH390989_downsampled",
+  "HOW_N23-0063_downsampled",
+  "HOW_N23-0568_downsampled"
+)
+
+# Clean labels for the legend (removes "_downsampled")
+legend_labels <- gsub("_downsampled", "", ordered_ids)
+
+# Map colors to the CLEANED labels
+ind_colors_named <- setNames(
+  c("#0072B2", "#D55E00", "#009E73"),
+  legend_labels
+)
+
+# ------------------------------------------------------------------
+# Identify main PSMC files
+# ------------------------------------------------------------------
+all_files <- list.files(pattern = "\\.psmc$")
+psmc_main_files <- all_files[!grepl("\\.combined\\.psmc$", all_files)]
+
+psmc_main_files <- sapply(ordered_ids, function(id) {
+  f <- grep(paste0("^", id, "\\.psmc$"), psmc_main_files, value = TRUE)
+  if (length(f) == 0) stop("Missing main PSMC file for ", id)
+  f[1]
+}, USE.NAMES = FALSE)
+
+# ------------------------------------------------------------------
+# Read MAIN PSMC files
+# ------------------------------------------------------------------
+main_list <- vector("list", length(psmc_main_files))
+
+for (i in seq_along(psmc_main_files)) {
+  f <- psmc_main_files[i]
+  message("Reading main PSMC: ", f)
+  
+  res <- psmc.result(file = f, mu = mu, g = g, i.iteration = 25)
+  df  <- bind_rows(res, .id = "iter")
+  
+  df$SampleID <- ordered_ids[i]
+  df$Label    <- legend_labels[i] # Uses the cleaned label here
+  
+  main_list[[i]] <- df
+}
+
+main_df <- bind_rows(main_list)
+
+main_df_main <- main_df %>%
+  filter(iter == "1") %>%
+  group_by(SampleID) %>%
+  slice(9:n()) %>%
+  ungroup()
+
+# ------------------------------------------------------------------
+# MAIN PLOT (no bootstraps)
+# ------------------------------------------------------------------
+p_main <- ggplot(main_df_main, aes(x = YearsAgo, y = Ne, color = Label)) +
+  geom_step(linewidth = 1.6, direction = "hv") +
+  scale_color_manual(values = ind_colors_named, name = "Sample") +
+  scale_x_log10(
+    limits = c(1e4, 5e6),                  # X-axis 10k–5Mya
+    breaks = c(1e4, 5e4, 1e5, 5e5, 1e6, 5e6),
+    labels = c("10 Kya","50 Kya","100 Kya","500 Kya","1 Mya","5 Mya")
+  ) +
+  scale_y_log10(
+    limits = c(7e3, 3.5e5),                # Y-axis 7k–350k
+    breaks = c(7e3,1e4,2e4,5e4,1e5,2e5,3e5,3.5e5),
+    labels = c("7k","10k","20k","50k","100k","200k","300k","350k")
+  ) +
+  annotation_logticks(sides = "bl") +
+  theme_classic() +
+  theme(
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 1),
+    legend.position = c(0.05, 0.95),
+    legend.justification = c("left", "top"),
+    legend.background = element_rect(fill = "white", colour = "black"),
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text  = element_text(size = 12),
+    axis.title   = element_text(size = 14, face = "bold"),
+    axis.text    = element_text(size = 12)
+  ) +
+  labs(
+    x = "Time",
+    y = "Effective population size (Ne)"
+  ) +
+  annotate(
+    "text",
+    x = 5e6,
+    y = 8e3,                                # slightly above 7k for label
+    label = "(μ = 1.45e-8, g = 3.4)",
+    hjust = 1,
+    vjust = 0,
+    size = 5,
+    fontface = "bold"
+  )
+
+print(p_main)
+
+ggsave("GuamRail_PSMC_Main_NoBootstraps_5Mya_7k-350k.pdf",
+       p_main, width = 14, height = 8)
+ggsave("GuamRail_PSMC_Main_NoBootstraps_5Mya_7k-350k.jpeg",
+       p_main, width = 14, height = 8, dpi = 300)
+
+# ------------------------------------------------------------------
+# BOOTSTRAP PLOTS (if combined files exist)
+# ------------------------------------------------------------------
+combined_dir <- "All_combined_PSMC"
+
+for (i in seq_along(ordered_ids)) {
+  
+  sample_id <- ordered_ids[i]
+  clean_id  <- legend_labels[i] # Cleaned version for title
+  
+  combined_file <- file.path(combined_dir,
+                             paste0(sample_id, ".combined.psmc"))
+  
+  if (!file.exists(combined_file)) {
+    message("No bootstrap file for ", sample_id, " — skipping.")
+    next
+  }
+  
+  message("Reading bootstrap file: ", combined_file)
+  
+  res_all <- psmc.result(file = combined_file,
+                         mu = mu, g = g, i.iteration = 25)
+  
+  df_all <- bind_rows(res_all, .id = "iter") %>%
+    group_by(iter) %>%
+    slice(9:n()) %>%
+    ungroup()
+  
+  df_main_ind <- df_all %>% filter(iter == "1")
+  df_boot_ind <- df_all %>% filter(iter != "1")
+  
+  p_boot <- ggplot() +
+    geom_step(
+      data = df_boot_ind,
+      aes(x = YearsAgo, y = Ne, group = iter),
+      color = "grey60", alpha = 0.35,
+      linewidth = 0.6, direction = "hv"
+    ) +
+    geom_step(
+      data = df_main_ind,
+      aes(x = YearsAgo, y = Ne),
+      color = ind_colors_named[clean_id], # Reference the color by cleaned name
+      linewidth = 1.6, direction = "hv"
+    ) +
+    scale_x_log10(
+      limits = c(1e4, 5e6),                  # X-axis 10k–5Mya
+      breaks = c(1e4, 5e4, 1e5, 5e5, 1e6, 5e6),
+      labels = c("10 Kya","50 Kya","100 Kya","500 Kya","1 Mya","5 Mya")
+    ) +
+    scale_y_log10(
+      limits = c(7e3, 3.5e5),                # Y-axis 7k–350k
+      breaks = c(7e3,1e4,2e4,5e4,1e5,2e5,3e5,3.5e5),
+      labels = c("7k","10k","20k","50k","100k","200k","300k","350k")
+    ) +
+    annotation_logticks(sides = "bl") +
+    theme_classic() +
+    theme(
+      panel.border = element_rect(colour = "black",
+                                  fill = NA, linewidth = 1),
+      axis.title = element_text(size = 14, face = "bold"),
+      axis.text  = element_text(size = 12)
+    ) +
+    labs(
+      title = paste("PSMC bootstraps:", clean_id),
+      x = "Years ago",
+      y = "Effective population size (Ne)"
+    )
+  
+  print(p_boot)
+  
+  ggsave(paste0(sample_id, "_PSMC_with_bootstraps_5Mya_7k-350k.pdf"),
+         p_boot, width = 14, height = 8)
+  ggsave(paste0(sample_id, "_PSMC_with_bootstraps_5Mya_7k-350k.jpeg"),
+         p_boot, width = 14, height = 8, dpi = 300)
+}
+
+message("DONE: Guam Rail PSMC plots (5 Mya, 7k–350k) generated.")
+```
 
