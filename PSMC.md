@@ -92,49 +92,69 @@ echo "${OUTDIR}/${SAMPLE}.fq"
 
   ##### The slurm script will convert the fastq file into psmcfa
 ```bash
+
 #!/bin/bash -l
-#SBATCH --job-name=PSMC_run
+#SBATCH --job-name=PSMC_preprocess
 #SBATCH --time=48:00:00
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=128G
 #SBATCH --partition=batch
-#SBATCH --output=psmc_run_%A_%a.log
+#SBATCH --array=0-2
+#SBATCH --output=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/PSMC_pre_%A_%a.log
+#SBATCH --error=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/PSMC_pre_%A_%a.err
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=bistbs@miamioh.edu
-#SBATCH --array=0-4  # 5 samples
 
-# Binaries
-PSMC_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/psmc/psmc
-FQ2PSMCFA_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/psmc/utils/fq2psmcfa
-SPLITFA_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/psmc/utils/splitfa
-PSMC_PLOT_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/psmc/utils/psmc_plot.pl
+# --------------------------
+# PSMC binaries (YOUR paths)
+# --------------------------
+PSMC_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/psmc/psmc
+FQ2PSMCFA_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/psmc/utils/fq2psmcfa
+SPLITFA_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/psmc/utils/splitfa
+PSMC_PLOT_BIN=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail/psmc/utils/psmc_plot.pl
 
-# Mutation rate and generation time
-MU=2.96e-09
-GEN=5.85
+# --------------------------
+# Input FASTQ directory
+# --------------------------
+FQDIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/rm_duplicates_BAM/rm_duplicates_BAM/downsampled/PSMC_Guamrail
 
-# FASTQ files
-FQS=(SRR17129394.fq.gz SRR17134085.fq.gz SRR17134086.fq.gz SRR17134087.fq.gz SRR17134088.fq.gz)
+# --------------------------
+# FASTQ files (3 Guam rail samples)
+# --------------------------
+FQS=(
+FMNH390989_downsampled.fq
+HOW_N23-0063_downsampled.fq
+HOW_N23-0568_downsampled.fq
+)
 
-for FQ in "${FQS[@]}"
-do
-    SAMPLE=$(basename $FQ .fq.gz)
-    OUTDIR=PSMC_results/${SAMPLE}
-    
-    mkdir -p $OUTDIR
+# --------------------------
+# Select FASTQ based on array ID
+# --------------------------
+FQ=${FQS[$SLURM_ARRAY_TASK_ID]}
+SAMPLE=$(basename $FQ .fq)
 
-    echo "========================================"
-    echo "Processing sample: $SAMPLE"
-    echo "Saving results in: $OUTDIR"
-    echo "========================================"
+OUTDIR=${FQDIR}/PSMC_results/${SAMPLE}
+mkdir -p $OUTDIR
+cd $OUTDIR
 
-    # Step 1: Convert FASTQ → PSMCFA
-    $FQ2PSMCFA_BIN -q20 $FQ > $OUTDIR/${SAMPLE}.psmcfa
+echo "========================================"
+echo "Processing sample: $SAMPLE"
+echo "Input FASTQ: ${FQDIR}/${FQ}"
+echo "Output directory: $OUTDIR"
+echo "========================================"
 
-    # Step 2: Split
-    $SPLITFA_BIN $OUTDIR/${SAMPLE}.psmcfa > $OUTDIR/${SAMPLE}_split.psmcfa
+# --------------------------
+# Step 1: FASTQ → PSMCFA
+# --------------------------
+$FQ2PSMCFA_BIN -q20 ${FQDIR}/${FQ} > ${SAMPLE}.psmcfa
 
-done
+# --------------------------
+# Step 2: Split PSMCFA
+# --------------------------
+$SPLITFA_BIN ${SAMPLE}.psmcfa > ${SAMPLE}_split.psmcfa
+
+echo "PSMC preprocessing complete for $SAMPLE"
+
 ```
 
 ##### Step 3: Main PSMC
