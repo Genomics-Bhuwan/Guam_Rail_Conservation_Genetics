@@ -491,7 +491,14 @@ The last step to get a repeat annotation is to run ReapeatMasker.
 ```
 # usage: RepeatMasker -pa 30 -gff -lib {consensi_classified} -dir {dir_name} {genome_in_fasta}
 
-RepeatMasker -pa $NSLOTS -xsmall -gff -lib consensi.fa.classified -dir ../repeatmasker /path/to_assembly/bHypOws1_hifiasm.bp.p_ctg.fasta
+RepeatMasker \
+-pa 20 \
+-xsmall \
+-gff \
+-engine ncbi \
+-lib /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/RepeatMasker/consensi.fa.classified \
+-dir /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/RepeatMasker_output \
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/RepeatMasker/bHypOws1_hifiasm.bp.p_ctg.fasta
 ```
 ##### Explanation:
 ```
