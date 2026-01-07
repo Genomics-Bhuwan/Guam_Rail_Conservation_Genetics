@@ -513,8 +513,24 @@ RepeatMasker \
 - bHypOws1_hifiasm.bp.p_ctg.fasta.tbl: summary information about the repetitive elements
 - bHypOws1_hifiasm.bp.p_ctg..masked.fasta: masked assembly (in our case, softmasked)
 - bHypOws1_hifiasm.bp.p_ctg.fasta.out: detailed information about the repetitive elements, including coordinates, repeat type and size.
+```
+#### Genomic Repeat Divergence Summary (Kimura 2-Parameter) for the Guam Rail (Hypotaenidia owstoni) 
+- This file (.divsum) contains the CpG-adjusted Kimura substitution levels calculated from RepeatMasker alignments.
+- It represents the historical accumulation of transposable elements across the 1.39 Gb assembly, used to reconstruct the repeat landscape and identify periods of recent versus ancient TE activity.
+```bash
+perl -I /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/RepeatMasker/RepeatMasker \
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/RepeatMasker/RepeatMasker/util/calcDivergenceFromAlign.pl \
+-s bHypOws1.divsum \
+bHypOws1_hifiasm.bp.p_ctg.fasta.cat.gz
+```
+#### Generating the Plot for the "Repeat Landscape Plot".
 
-
+```bash
+perl -I /shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/RepeatMasker/RepeatMasker \
+/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/RepeatMasker/RepeatMasker/util/createRepeatLandscape.pl \
+-div bHypOws1.divsum \
+-g 1396704783 > guam_rail_landscape_matrix.txt
+```
 #### Run GeMoMa
 
 Gene Model Mapper (GeMoMa) is a homology-based gene prediction program. GeMoMa uses the annotation of protein-coding genes in a reference genome to infer the annotation of protein-coding genes in a target genome. Thus, GeMoMa uses amino acid and intron position conservation to create gen models. In addition, GeMoMa allows to incorporate RNA-seq evidence for splice site prediction. (see more in [GeMoMa](http://www.jstacs.de/index.php/GeMoMa-Docs)).
