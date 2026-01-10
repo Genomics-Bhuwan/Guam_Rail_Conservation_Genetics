@@ -118,30 +118,79 @@ busco \
   -f
 
 ```
-
-##### Explanation:
-```
--o: name of the output folder and files
--i: input file (FASTA)
--l: name of the database of BUSCOs (This will automatically connected and dowloand the database from the BUSCO website).
--c: number of CPUs
--m: mode (options are genome, transcriptome, proteins)
-
-```
-#### Plotting the BUSCO completeness reference genome assembly
-- To Plot the results use the generate_plot.py script provided by BUSCO.
-- I won't use this one
+#### Running BUSCOs for all the five samples for comparative genomics
 ```bash
-generate_plot.py -wd /scratch/genomics/ariasc/smsc_2024/busco_run/Guam_Rail 
-```
+#!/bin/bash -l
+#SBATCH --time=100:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=20
+#SBATCH --mem=90G
+#SBATCH --partition=batch
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=bistbs@miamioh.edu
+#SBATCH --job-name=BUSCO_Analysis
+#SBATCH --array=0-4      # 5 genomes
 
-##### Explanation:
+set -euo pipefail
 
-```
--wd: Path to the BUSCO results directory
-```
+# Load Java and BUSCO environment
+module load java-20
+module load hmmer-3.3.2
+conda activate busco-env
 
-This will generate a .png file of your BUSCO results, which visually summarizes the completeness of the dataset in terms of the number of complete, fragmented, or missing BUSCOs.
+# Ensure BLAST+ and Miniprot in PATH
+export PATH=/software/blast+/ncbi-blast-2.13.0+/bin:$PATH
+export PATH=/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/BUSCO/miniprot:$PATH
+export PATH=/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/BUSCO/bbmap:$PATH
+
+# Set Java heap space for BBTools
+export BBMAP_JAVA_OPTS="-Xmx80g"
+
+# Base directory for genomes
+BASE=/shared/jezkovt_bistbs_shared/Guam_Rail/Comparative_RepeatModeler
+
+# Input genome files (order matters)
+GENOMES=(
+  "${BASE}/Grey_crowned_crane/Grey_crowned_crane.fasta"
+  "${BASE}/Kakapo/Kakapo.fasta"
+  "${BASE}/Turaco/Turaco.fasta"
+  "${BASE}/Water_rail/Water_rail.fasta"
+  "${BASE}/Zebra_finch/Zebra_finch.fasta"
+)
+
+# Output folders (same location as input genome)
+OUTFOLDERS=(
+  "${BASE}/Grey_crowned_crane/BUSCO_output"
+  "${BASE}/Kakapo/BUSCO_output"
+  "${BASE}/Turaco/BUSCO_output"
+  "${BASE}/Water_rail/BUSCO_output"
+  "${BASE}/Zebra_finch/BUSCO_output"
+)
+
+# Select genome and output folder for this array task
+GENOME="${GENOMES[$SLURM_ARRAY_TASK_ID]}"
+OUTDIR="${OUTFOLDERS[$SLURM_ARRAY_TASK_ID]}"
+
+# Create output directory if missing
+mkdir -p "${OUTDIR}"
+
+echo "================================================="
+echo "Running BUSCO for genome: ${GENOME}"
+echo "Output directory: ${OUTDIR}"
+echo "Node: $(hostname)"
+echo "SLURM_ARRAY_TASK_ID: $SLURM_ARRAY_TASK_ID"
+echo "================================================="
+
+# Run BUSCO
+busco \
+  -i "${GENOME}" \
+  -l aves_odb10 \
+  -m genome \
+  -o "${OUTDIR}" \
+  -c ${SLURM_NTASKS_PER_NODE} \
+  --miniprot \
+  -f
+```
 
 
 ### Run Bloobtools
