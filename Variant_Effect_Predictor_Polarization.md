@@ -1,6 +1,20 @@
 ################################# RAILS POLARIZING ############################
-# Using Virginia Rail (Near) and Common Moorhen (Distant)
+#### Step of variant filtration
+```bash
+Variant Filtering and Depth Thresholds
 
+To ensure high-quality variant calls and reduce the inclusion of duplicated or paralogous regions, we applied hard filtering criteria using GATK v4.1.2.0.
+
+First, joint genotyping was performed to generate a multi-sample VCF file.
+
+We then calculated the genome-wide mean site coverage using the INFO/DP field in the VCF file with bcftools. The mean depth across all variant sites was 81.94×.
+
+Following established best practices, we retained only sites with an overall coverage between 10× and twice the genome-wide mean coverage.
+
+Therefore, variants with site-level depth (INFO/DP) <10× or >164× were excluded.
+
+```
+# Using Virginia Rail (Near) and Common Moorhen (Distant)
 # 1. Assign Genotypes (Pseudo-haploidized)
 # This uses the python script from the wolf project to pick 1 random read per site
 d=5 # Minimum depth
