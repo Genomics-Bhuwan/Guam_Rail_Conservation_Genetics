@@ -94,7 +94,7 @@ fi
 ```
 #### Genome-wide pi per site
 ```bash
-awk 'NR>1 {win=$3-$2+1; sum += $5/win; n++} END {print "Genome-wide nucleotide diversity (pi, per site):", sum/n}' SRR18439748.windowed.theta.pestPG
+awk 'NR>1 && $14 > 0 {sum += $5/$14; n++} END {if (n > 0) print "Sample SRR18439748 - Corrected Pi (per site):", sum/n; else print "No data found."}' SRR18439748.windowed.theta.pestPG
 ```
 
 - b. Guam rail
