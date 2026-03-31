@@ -96,19 +96,19 @@ echo "Process Complete. Your ancestral file is: ${OUT_PREFIX}.fa.gz"
 - We need to take every mutation SNP that exists in your Guam rail biallelic SNPs and put their address into a simple list.
 ```bash
 # Define your paths
-IN_VCF="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/Dama_Gazelle_Final_Filtered_biallelic.recode.vcf"
-OUT_DIR="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups"
-PLINK_EXE="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/plink"
 
+IN_VCF="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Guam_rail_biallelic_SNPs.vcf.gz"
+OUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Plink_For_Next_Step"
+PLINK_EXE="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/plink"
 # Run the conversion
 $PLINK_EXE --vcf "$IN_VCF" \
 --make-bed \
 --allow-extra-chr \
---out "$OUT_DIR/Dama_Final_Binary"
+--out "$OUT_DIR/Guam_Final_Binary"
 ```
 - After running the plink, run below command
 ---
-awk 'BEGIN{OFS="\t"} {print $1, $4-1, $4}' Dama_Final_Binary.bim > Dama_SNPs_Coordinates.bed
+awk 'BEGIN{OFS="\t"} {print $1, $4-1, $4}' Guam_Final_Binary.bim > Guam_SNPs_Coordinates.bed
 ---
 
 #### Step 4. Extract ancestral alleles using bedtools
@@ -116,9 +116,9 @@ awk 'BEGIN{OFS="\t"} {print $1, $4-1, $4}' Dama_Final_Binary.bim > Dama_SNPs_Coo
 ```bash
 module load bedtools-2.28
 # 2. Define your paths
-FASTA="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/gazelle_outgroup_consensus.fa"
-BED="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/BEDfiles/Dama_SNPs_Coordinates.bed"
-OUT_FILE="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/ancestral_alleles.out"
+FASTA="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/rail_outgroup_consensus.fa"
+BED="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Plink_For_Next_Step/Guam_SNPs_Coordinates.bed"
+OUT_FILE="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Plink_For_Next_Step/ancestral_alleles.out"
 
 # 3. Extract the ancestral base
 # Note: Ensure the FASTA is unzipped first
@@ -131,7 +131,7 @@ grep -v ">" ancestral_alleles.out > alleles_only.txt
 
 # 2. Get the SNP IDs (Chromosome:Position) from your FIXED bed file
 # Note: We use the 3rd column (actual position) to match PLINK's @:# format
-awk '{print $1":"$3}' Dama_SNPs_Coordinates.bed > positions_only.txt
+awk '{print $1":"$3}' Guam_SNPs_Coordinates.bed > positions_only.txt
 
 # 3. Paste them together to make the reference file
 paste positions_only.txt alleles_only.txt > ancestral_alleles.txt
@@ -139,13 +139,19 @@ paste positions_only.txt alleles_only.txt > ancestral_alleles.txt
 
 #### Step 6. Prepare the VCF IDs.
 - PLINK needs the IDs in your vcf to match the IDs in your ancestral_alleles.txt
-- A file named temp_dama.vcf where every SNP is named Chromosome: Position.
+- A file named temp_Guam.vcf where every SNP is named Chromosome: Position.
 ```bash
-./plink --vcf Dama_Gazelle_Final_Filtered_biallelic.recode.vcf \
---set-missing-var-ids @:# \
---recode vcf \
---allow-extra-chr \
---out temp_dama
+# Navigate to your Plink folder
+cd /shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Plink_For_Next_Step/
+
+# Run the conversion
+./plink --vcf /shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Guam_rail_biallelic_SNPs.vcf \
+  --set-missing-var-ids @:# \
+  --allow-extra-chr \
+  --recode vcf \
+  --const-fid 0 \
+  --real-ref-alleles \
+  --out temp_Guam
 ```
 
 #### Step 7. Polarize (Big Switch)
@@ -155,42 +161,44 @@ paste positions_only.txt alleles_only.txt > ancestral_alleles.txt
 awk '{print $1}' ancestral_alleles.txt > ancestral_positions.txt
 
 # 2. Run the polarization
-./plink --vcf temp_dama.vcf \
---extract ancestral_positions.txt \
---a2-allele ancestral_alleles.txt 2 1 \
---recode vcf \
---allow-extra-chr \
---out temp_dama_polarized
+./plink --vcf temp_Guam.vcf \
+  --extract ancestral_positions.txt \
+  --a2-allele ancestral_alleles.txt 2 1 \
+  --recode vcf \
+  --allow-extra-chr \
+  --const-fid 0 \
+  --out temp_Guam_polarized
 ```    
 
 #### Step 8. Final Cleanup(Removing Mismatches)
-- Remove the SNPs where the ancestral letter doesn't match the Dama gazelle letters (e.g., Ancestro has "A", but Dama only has "C/G")
+- Remove the SNPs where the ancestral letter doesn't match the Guam_rail letters (e.g., Ancestral has "A", but Dama only has "C/G")
 ```bash
 # 1. Identify the mismatches from the log file
-grep 'Warning' temp_dama_polarized.log | awk '{print $7}' | sed 's/.//;s/.$//' > mismatches.txt
+grep 'Warning' temp_Guam_polarized.log | awk '{print $7}' | sed 's/.//;s/.$//' > mismatches.txt
 
 # 2. Create the final, clean, polarized VCF
-./plink --vcf temp_dama_polarized.vcf \
---exclude mismatches.txt \
---allow-extra-chr \
---export vcf-4.2 \
---out Dama_Gazelle_POLARIZED_Final
+./plink --vcf temp_Guam_polarized.vcf \
+  --exclude mismatches.txt \
+  --allow-extra-chr \
+  --const-fid 0 \
+  --recode vcf \
+  --out Guam_rail_POLARIZED_Final
 
 # 3. Clean up the temporary files to save space
-rm temp_dama.vcf temp_dama_polarized.vcf alleles_only.txt positions_only.txt
+rm temp_Guam.vcf temp_Guam_polarized.vcf alleles_only.txt positions_only.txt
 ```
 
 #### Step 9. Variant Annotation using VEP or SnpEff.
 - The final vcf has the ALT allele (the '1') is officially the Derived Mutation.
 - This is exactly what VEP needs to tell you if the mutation is harmful.
 ```bash
-singularity exec ensembl-vep_latest.sif vep \
---input_file ../Dama_Gazelle_Polarized_autosomes.vcf \
---output_file ../Final_Annotation/Dama_Gazelle_Annotated_Individuals.txt \
---fasta ../Dama_gazelle_hifiasm-ULONT_primary.fasta.gz \
---gff ../Addra.withExons.gff.gz \
---dir_cache ../vep_cache \
---species dama_gazelle \
+singularity exec -B /shared Final_VEP/ensembl-vep/ensembl-vep_latest.sif vep \
+--input_file Guam_rail_POLARIZED_Final.vcf \
+--output_file Final_VEP/Final_Annotation/Guam_rail_Annotated_Individuals.txt \
+--fasta /shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/bHypOws1_hifiasm.bp.p_ctg.fasta \
+--gff Final_VEP/Guam_rail.withExons.gff.gz \
+--dir_cache Final_VEP/vep_cache \
+--species Guam_rail \
 --cache \
 --offline \
 --protein \
@@ -200,7 +208,7 @@ singularity exec ensembl-vep_latest.sif vep \
 --no_stats \
 --buffer_size 10000 \
 --force_overwrite \
---warning_file ../vep_warnings.txt \
+--warning_file Final_VEP/vep_warnings.txt \
 --individual all
 ```
 
@@ -208,10 +216,22 @@ singularity exec ensembl-vep_latest.sif vep \
 #### Step 10.a Filter site by the consequences
 ```bash
 # Filter for LoF, missense, synonymous, and intergenic
-filter_vep -i ../Final_Annotation/Dama_Gazelle_Annotated_Individuals.txt -o missense_sites.txt --filter "Consequence is missense_variant"
-filter_vep -i ../Final_Annotation/Dama_Gazelle_Annotated_Individuals.txt -o synonymous_sites.txt --filter "Consequence is synonymous_variant"
-filter_vep -i ../Final_Annotation/Dama_Gazelle_Annotated_Individuals.txt -o lof_sites.txt --filter "Consequence is transcript_ablation or Consequence is splice_donor_variant or Consequence is splice_acceptor_variant or Consequence is stop_gained or Consequence is frameshift_variant or Consequence is inframe_insertion or Consequence is inframe_deletion or Consequence is splice_region_variant"
-filter_vep -i ../Final_Annotation/Dama_Gazelle_Annotated_Individuals.txt -o intergenic_sites.txt --filter "Consequence is intergenic_variant"
+# 1. Filter for Missense variants
+filter_vep -i Final_VEP/Final_Annotation/Guam_rail_Annotated_Individuals.txt \
+-o Final_VEP/Final_Annotation/missense_sites.txt --filter "Consequence is missense_variant"
+
+# 2. Filter for Synonymous variants
+filter_vep -i Final_VEP/Final_Annotation/Guam_rail_Annotated_Individuals.txt \
+-o Final_VEP/Final_Annotation/synonymous_sites.txt --filter "Consequence is synonymous_variant"
+
+# 3. Filter for Loss of Function (LoF) and Splicing variants
+filter_vep -i Final_VEP/Final_Annotation/Guam_rail_Annotated_Individuals.txt \
+-o Final_VEP/Final_Annotation/lof_sites.txt \
+--filter "Consequence is transcript_ablation or Consequence is splice_donor_variant or Consequence is splice_acceptor_variant or Consequence is stop_gained or Consequence is frameshift_variant or Consequence is inframe_insertion or Consequence is inframe_deletion or Consequence is splice_region_variant"
+
+# 4. Filter for Intergenic variants
+filter_vep -i Final_VEP/Final_Annotation/Guam_rail_Annotated_Individuals.txt \
+-o Final_VEP/Final_Annotation/intergenic_sites.txt --filter "Consequence is intergenic_variant"
 ```
 #### Step 10. b. Create ID Lists
 - use awk to turn the VEP locations into a format vcftools understands(Chromosome and Position).
@@ -226,11 +246,11 @@ cat intergenic_sites.txt | awk '{ print $1 }' | awk '{sub(/\:/," ",$1)};1' > int
 ```bash
 for i in missense synonymous lof intergenic
 do
-    vcftools --vcf ../Dama_Gazelle_Polarized_autosomes.vcf \
+    vcftools --vcf /shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Plink_For_Next_Step/Guam_rail_POLARIZED_Final.vcf \
     --recode \
     --recode-INFO-all \
     --positions ${i}_IDs.txt \
-    --out Dama_Gazelle_${i}_snps
+    --out Guam_rail_${i}_snps
 done
 ```
 #### Step 10.d. Convert to PLINK(The A-transpose format)
@@ -241,10 +261,10 @@ done
 for i in missense synonymous lof intergenic
 do
     /home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/plink \
-        --vcf Dama_Gazelle_${i}_snps.recode.vcf \
+        --vcf Guam_rail_${i}_snps.recode.vcf \
         --export A-transpose \
         --allow-extra-chr \
-        --out $OUTDIR/Dama_Gazelle_${i}_genotypes
+        --out $OUTDIR/Guam_rail_${i}_genotypes
 done
 ```
 
