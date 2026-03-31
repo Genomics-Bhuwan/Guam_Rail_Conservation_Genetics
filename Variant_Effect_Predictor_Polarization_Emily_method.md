@@ -1,67 +1,61 @@
 ################################# RAILS POLARIZING ############################
 
-#### Virginia rail and Eurasian coot as an outgroup.
-- 
+#### Virginia rail https://trace.ncbi.nlm.nih.gov/Traces/?run=SRR18506199 and Eurasian coot https://trace.ncbi.nlm.nih.gov/Traces/?run=ERR12765175 as an outgroup.
 
 #### Finding deleterious mutation in the Guam rail.
 - Usually kept three species but here I am keeping two outgroups.
-- Virginia rail:https://trace.ncbi.nlm.nih.gov/Traces/?run=SRR18506199  and Eurasian coot (https://trace.ncbi.nlm.nih.gov/Traces/?run=SRR11537186)
-#### Step 1. Download the short-read sequences of Grant's gazelle and Thomson's gazelle.
-- Map these with BWA-MEM using the reference genome assembly of Guam rail.
+- Virginia rail:https://trace.ncbi.nlm.nih.gov/Traces/?run=SRR18506199  and Eurasian coot (https://trace.ncbi.nlm.nih.gov/Traces/?run=ERR12765175)
+#### Step 1. Download the short-read sequences of Virginia rail  and Eurasian coot.
+- Adapter trimming, Map these with BWA-MEM using the reference genome assembly of Guam rail.
 - Sort, rmduplicates and calculate the depth.
 - Once the depth is calculated downsample them to the depth of the sample having the lowest depth.
-- Merge them togethger and the run as below.
+- Virginia rail had the depth of 18X and I downsampled the depth of Eurasian rail from 42X to 18X.
+- Merged them.
 
 ```bash
-#!/bin/bash -l
-#SBATCH --job-name=MergeOutgroups_Dama
-#SBATCH --time=50:00:00
+#!/bin/bash
+
+#SBATCH --job-name=merge_outgroups
+#SBATCH --output=merge_%j.log
+#SBATCH --error=merge_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=14
-#SBATCH --mem=80G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=95G
+#SBATCH --time=24:00:00
 #SBATCH --partition=batch
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=bistbs@miamioh.edu
-#SBATCH --output=/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/merge_%j.out
-#SBATCH --error=/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/merge_%j.err
 
-# 1. Load Java (Using your specific version)
+# Load the correct Java version available on your cluster
+module purge
 module load java-20
 
-# 2. Define Paths from your provided script
-PICARD_JAR="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/picard.jar"
-IN_DIR="/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/ABBA_BABA/Haplotype_Caller/Five_samples/rmdup_Dama"
-OUT_DIR="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups"
+# Define Variables
+PICARD="/shared/jezkovt_bistbs_shared/Guam_Rail/Guam_Rail_Analysis/Final_data_analysis/Alignment_BWAmem/Add_RG/picard.jar"
+VIRGINIA="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/Virginia_rail/Alignment_Results/SRR18506199_final.bam"
+COOT="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/Eurasian_coot_outgroup/trimmed_fastq/Alignment_Results/Processed_BAM/ERR12765175_coot_downsampled.bam"
+OUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/Outgroups_Merged_Eurasian_coot_Virginia_18X"
 
-# Create output directory if it doesn't exist
-mkdir -p "$OUT_DIR"
+# Create output directory
+mkdir -p $OUT_DIR
 
-# 3. Define the two specific outgroup files to merge
-# Grant's Gazelle and Thompson's Gazelle
-BAM1="$IN_DIR/SRR6878810_sorted_RG_rmdup10X.bam"
-BAM2="$IN_DIR/SRR6894844_rmdup_10X.bam"
-
-echo "Starting merge for Outgroups..."
-
-# 4. Run Picard MergeSamFiles
-java -Xmx30g -jar "$PICARD_JAR" MergeSamFiles \
-    I="$BAM1" \
-    I="$BAM2" \
-    O="$OUT_DIR/gazelle_outgroup_merged.bam" \
-    TMP_DIR="$OUT_DIR" \
+# Run Picard MergeSamFiles
+# Using java-20 will resolve the UnsupportedClassVersionError
+java -Xmx90G -jar $PICARD MergeSamFiles \
+    I=$VIRGINIA \
+    I=$COOT \
+    O=$OUT_DIR/Outgroups_Merged_Eurasian_coot_Virginia_18X.bam \
+    USE_THREADING=true \
     CREATE_INDEX=true \
-    VALIDATION_STRINGENCY=SILENT \
-    USE_THREADING=true
+    VALIDATION_STRINGENCY=SILENT
 
-echo "Merge Complete. Output file: $OUT_DIR/gazelle_outgroup_merged.bam"
+echo "Merging complete at $(date)"
 ```
 
-#### Step 2. Consensus generation for Dama gazelle outgroups.
+#### Step 2. Consensus generation for Virginia rail and Eurasian coot outgroups.
 
 ```bash
 #!/bin/bash -l
-#SBATCH --job-name=ANGSD_Dama
+#SBATCH --job-name=ANGSD_Rail
 #SBATCH --time=54:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -78,9 +72,9 @@ module load angsd
 
 # 2. Define Input and Output
 # Your merged outgroup BAM file
-INPUT_BAM="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/gazelle_outgroup_merged.bam"
+INPUT_BAM="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/Outgroups_Merged_Eurasian_coot_Virginia_18X/Outgroups_Merged_Eurasian_coot_Virginia_18X.bam"
 # Where the ancestral fasta will be saved
-OUT_PREFIX="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/gazelle_outgroup_consensus"
+OUT_PREFIX="/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus"
 
 echo "Starting ANGSD Consensus Generation for Dama Gazelle Outgroups..."
 
@@ -99,7 +93,7 @@ angsd \
 echo "Process Complete. Your ancestral file is: ${OUT_PREFIX}.fa.gz"
 ```
 #### Step 3. Conversion of vcf file to .bed format
-- We need to take every mutation SNP that exists in your five gazelles and put their address into a simple list.
+- We need to take every mutation SNP that exists in your Guam rail biallelic SNPs and put their address into a simple list.
 ```bash
 # Define your paths
 IN_VCF="/home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/Dama_Gazelle_Final_Filtered_biallelic.recode.vcf"
