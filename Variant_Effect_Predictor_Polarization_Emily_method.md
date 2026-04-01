@@ -258,13 +258,17 @@ done
 - Use Plink --export A-transposae.
 - This creates a .traw file where: Rows= SNPs, Columns - five individuals(SRR IDs); Values = 0, 1 or 2 (number of derived alleles).
 ```bash
+# Set your output directory clearly
+OUTDIR=/shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Plink_For_Next_Step/Final_VEP/Final_Annotation
+
 for i in missense synonymous lof intergenic
 do
-    /home/bistbs/Dama_gazelle_VEP/Merging_Outgroups/plink \
+    /shared/jezkovt_bistbs_shared/Guam_Rail/Heterozygosity/Comparative_genomics/VEP_Polarization/rail_outgroup_consensus/Plink_For_Next_Step/plink \
         --vcf Guam_rail_${i}_snps.recode.vcf \
         --export A-transpose \
         --allow-extra-chr \
-        --out $OUTDIR/Guam_rail_${i}_genotypes
+        --double-id \
+        --out ${OUTDIR}/Guam_rail_${i}_genotypes
 done
 ```
 
