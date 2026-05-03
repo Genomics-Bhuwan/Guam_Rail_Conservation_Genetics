@@ -21,11 +21,11 @@ chmod +x smoove
   #### Step 2. Running for small sample cohort for structural variants
 ```bash
   ./smoove call -x \
-    --name Dama_Gazelle_Cohort \
-    --fasta /shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Structural_Variants_SaVOR/Dama_gazelle_hifiasm-ULONT_primary.fasta \
-    -p 4 \
+    --name Guam_Gazelle_Cohort \
+    --fasta /shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/bHypOws1_hifiasm.bp.p_ctg.fasta \
+    -p 20 \
     --genotype \
-    /shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Structural_Variants_SaVOR/svArcher_Standalone/results/Dama_Gazelle/bams/*.bam
+    /shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/*.bam
 ```
 #### Step 3. Run the duphold to add the depth annotations(DHFFC).
 # Optional: Run duphold to add depth annotations (DHFFC)
@@ -42,15 +42,15 @@ chmod +x duphold
 #### Step 3 a. Annotation included
 ```bash
 ./smoove duphold -x \
-    --name Dama_Gazelle_Annotated \
-    --vcf Dama_Gazelle_Cohort-smoove.genotyped.vcf.gz \
-    --fasta /shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Structural_Variants_SaVOR/Dama_gazelle_hifiasm-ULONT_primary.fasta \
-    /shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Structural_Variants_SaVOR/svArcher_Standalone/results/Dama_Gazelle/bams/*.bam
+    --name Guam_rail_Annotated \
+    --vcf Guam_Gazelle_Cohort-smoove.genotyped.vcf.gz \
+    --fasta /shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/bHypOws1_hifiasm.bp.p_ctg.fasta \
+    /shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/*.bam
 ```
 
 #### Step 3 b. Run annotate with a GFF file for the Dama gazelle.
 ```bash
-./smoove annotate --gff your_gazelle.gff3.gz Dama_Gazelle_Annotated.vcf.gz | bgzip -c > Dama_Gazelle_Final.vcf.gz
+./smoove annotate --gff Guam_rail.gff Guam_Gazelle_Cohort-smoove.genotyped.vcf.gz | bgzip -c > Guam_rail_Final.vcf.gz
 ```
 
 #### Step 4. Variant filtration for Smoove for high-quality genotypes and real depth changes using LUMPY
@@ -60,8 +60,8 @@ chmod +x duphold
 - These are stringently requested by the smoove pipeline.
 ```bash
 bcftools view -i 'MSHQ > 3 && (SVTYPE == "DEL" && DHFFC < 0.7 || SVTYPE == "DUP" && DHFFC > 1.3 || SVTYPE == "INV")' \
-    Dama_Gazelle_Annotated.vcf.gz | \
-bcftools view -i 'QUAL >= 100' -O z -o Dama_Gazelle_Smoove_Clean.vcf.gz
+    /Guam_Gazelle_Cohort-smoove.genotyped.vcf.gz | \
+bcftools view -i 'QUAL >= 100' -O z -o Guam_rail_Smoove_Final_filtered.vcf.gz
 
 # Always index after filtering
 tabix -p vcf Dama_Gazelle_Smoove_Clean.vcf.gz
@@ -78,28 +78,44 @@ tabix -p vcf Dama_Gazelle_Smoove_Clean.vcf.gz
 - Avoid wasting time on hundreds of h1tg scaffolds.
 
 ```bash
- # Set Paths
-REF="/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Structural_Variants_SaVOR/Dama_gazelle_hifiasm-ULONT_primary.fasta"
-BAM_DIR="/shared/jezkovt_bistbs_shared/Dama_Gazelle_Project/Structural_Variants_SaVOR/svArcher_Standalone/results/Dama_Gazelle/bams"
-DELLY_IMG="./delly.sif"
-# Create exclusion list for anything not Chromosomes 1-17
-grep ">" $REF | sed 's/>//g' | grep -vE "^([1-9]|1[0-7])$" > exclude.txt
-```
+#!/bin/bash
+#SBATCH --job-name=delly_guam
+#SBATCH --output=logs/delly_%a.out
+#SBATCH --error=logs/delly_%a.err
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=60:00:00
+#SBATCH --array=0-2
+#SBATCH --mail-user=bistbs@miamioh.edu
+#SBATCH --mail-type=BEGIN,END,FAIL
 
-#### Step 5 b: SV Discovery for each of the individual sample.
-- Mine is Illumina paired-end short read sequence. Use -y ont for oxford nanoepore sequencing and -y pb for PacBio.
-- Run variant discovery for the five samples.
-```bash
-SAMPLES=("SRR17129394" "SRR17134085" "SRR17134086" "SRR17134087" "SRR17134088")
+# --- 1. Absolute Paths ---
+REF="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/bHypOws1_hifiasm.bp.p_ctg.fasta"
+BAM_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants"
+OUT_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants"
+DELLY_IMG="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/delly.sif"
 
-for s in "${SAMPLES[@]}"; do
-    echo "Short-Read Discovery: $s"
-    singularity exec --bind /shared:/shared $DELLY_IMG delly call \
-        -g $REF \
-        -x exclude.txt \
-        -o "${s}.bcf" \
-        "${BAM_DIR}/${s}_mapped_sorted_RG_rmdup.bam"
-done
+# --- 2. Sample List ---
+# These must match the start of your .bam filenames exactly
+SAMPLES=("FMNH390989" "HOW_N23-0063" "HOW_N23-0568")
+SAMPLE=${SAMPLES[$SLURM_ARRAY_TASK_ID]}
+
+# --- 3. Execution ---
+mkdir -p logs
+
+echo "Starting Delly for Sample: $SAMPLE"
+echo "Using Reference: $REF"
+
+# Note: I removed the -x (exclude) flag so you don't have to worry about chromosome names.
+# Delly will process every contig found in the FASTA.
+singularity exec --bind /shared:/shared "$DELLY_IMG" delly call \
+    -g "$REF" \
+    -o "${OUT_DIR}/${SAMPLE}.bcf" \
+    "${BAM_DIR}/${SAMPLE}_downsampled.bam"
+
+echo "Finished at $(date)"
 ```
 #### Step 5 c.: Merge Sites
 - We are now merging the findings from all 5 samples into a single unified list of candidate SVs.
