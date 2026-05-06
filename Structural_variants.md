@@ -120,20 +120,37 @@ echo "Finished at $(date)"
 #### Step 5 c.: Merge Sites
 - We are now merging the findings from all 5 samples into a single unified list of candidate SVs.
 ```bash
+# 1. Fix the image path variable
+export DELLY_IMG="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/DELLY/delly.sif"
+
+# 2. Run the merge using your actual filenames
 singularity exec --bind /shared:/shared $DELLY_IMG delly merge -o sites.bcf \
-    SRR17129394.bcf SRR17134085.bcf SRR17134086.bcf SRR17134087.bcf SRR17134088.bcf
+FMNH390989.bcf \
+HOW_N23-0063.bcf \
+HOW_N23-0568.bcf
 ```
 #### Step 5 d.: Genotyping (Per Sample)
 - We now go back to the original BAM files to see  which sample has which variant from the unified sites.bcf list.
 ```bash
+# 1. Define paths and image
+export DELLY_IMG="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/DELLY/delly.sif"
+REF="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/bHypOws1_hifiasm.bp.p_ctg.fasta"
+BAM_DIR="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants"
+
+# 2. Define the sample IDs
+SAMPLES=("FMNH390989" "HOW_N23-0063" "HOW_N23-0568")
+
+# 3. Run the Genotyping loop
 for s in "${SAMPLES[@]}"; do
-    echo "Genotyping: $s"
+    echo "=========================================="
+    echo "Genotyping Sample: $s"
+    echo "=========================================="
+    
     singularity exec --bind /shared:/shared $DELLY_IMG delly call \
-        -g $REF \
+        -g "$REF" \
         -v sites.bcf \
-        -x exclude.txt \
         -o "${s}.geno.bcf" \
-        "${BAM_DIR}/${s}_mapped_sorted_RG_rmdup.bam"
+        "${BAM_DIR}/${s}_downsampled.bam"
 done
 ```
 
