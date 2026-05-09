@@ -273,4 +273,56 @@ echo "Raw Variants:      $(grep -v "^#" $INPUT_VCF | wc -l)"
 echo "Filtered Variants: $(grep -v "^#" $FINAL_VCF | wc -l)"
 echo "------------------------------------------------"----------"
 ```
-   
+
+
+   #### 7. Use SURVIVOR FOR merging the three vcf files and generate the consensus vcf file.
+#### Step 7.a Installation of the survivor.
+
+   ```bash
+cd /shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/SURVIVOR
+
+# Download and unpack
+wget https://github.com/fritzsedlazeck/SURVIVOR/archive/master.tar.gz -O SURVIVOR.tar.gz
+tar xzvf SURVIVOR.tar.gz
+
+# Compile
+cd SURVIVOR-master/Debug/
+make
+
+# Move the executable up to your main SURVIVOR directory for easier access
+cp SURVIVOR ../../
+cd ../../
+
+```
+
+#### Step 7. b. Create the sample files text file that tells SURVIVOR which vcfs to compare.
+- Create the list of the samples
+```bash
+SMOOVE="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/smoove/FINAL/Guam_Gazelle_Cohort-smoove.genotyped.vcf.gz"
+DELLY="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/DELLY/Final_Filtration/delly_final.vcf.gz"
+WHAM="/shared/jezkovt_bistbs_shared/Guam_Rail/Structural_Variants/WHAM/Final_Filtered_File/wham_final.vcf.gz"
+
+# Create the input list
+printf "$DELLY\n$WHAM\n$SMOOVE\n" > guam_rail_vcf_list.txt
+```
+#### Step 7 c: Run the Consensus MergeNow, execute the merge using the parameters defined in your documentation. 
+- We will use:1000: 1kb breakpoint distance.2: Minimum support (at least 2 callers must agree).1: Agree on SV Type.1: Agree on Strand.0: No size-specific distance.50: Minimum SV length of 50bp.
+```bash
+./SURVIVOR merge guam_rail_vcf_list.txt 1000 2 1 1 0 50 Guam_Rail_Consensus_Final.vcf
+```
+#### Step 7 d. Optional: Draw  Venn Diagram. Since I have three callers and I likely want to know the overlap.
+- i.e., how many were found by all three vs. just two.
+- You can extract the support vector information for R as mentioned. 
+```bash
+perl -ne 'print "$1\n" if /SUPP_VEC=([^,;]+)/' Guam_Rail_Consensus_Final.vcf | sed -e 's/\(.\)/\1 /g' > guam_rail_overlap_stats.txt
+```
+
+#### Step 7 e. Summary of the Final Guam_Rail_Consensus_Final.vcf.
+- This is the gold standard SV set.
+- Every variant in this file has been double checked  by at least two different algorithms.
+- Us this in R to create a venn diagram for your publication to show the consistency between SMOOVE, DELLY AND WHAMg.
+- To see, how many high-confidence SVs survived the merging.
+  
+```bash
+grep -v "^#" Guam_Rail_Consensus_Final.vcf | wc -l
+```
