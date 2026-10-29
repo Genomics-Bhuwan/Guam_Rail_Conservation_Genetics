@@ -1,131 +1,142 @@
-
-
-
 ```bash
 
 set -euo pipefail
 
-# =========================================================
-# Guam Rail: Filter annotated variants by consequence
-# =========================================================
+# ==========================================
+# Guam Rail SnpEff Annotation
+# ==========================================
 
-WORKING_DIR="/home/bistbs/Guam_rail_SNPeff"
-SNPSIFT_JAR="${WORKING_DIR}/snpEff/SnpSift.jar"
-JAVA_EXEC="${WORKING_DIR}/snpEff/jdk-21.0.2/bin/java"
+# Project paths
+PROJECT="$HOME/Guam_rail_SNPeff"
+SNPEFF="$PROJECT/snpEff"
 
-INPUT_VCF="${WORKING_DIR}/Guam_rail_annotated/Guam_rail_final_filtered_annotated.vcf"
+# Activate Java 21
+export JAVA_HOME="$SNPEFF/jdk-21.0.2"
+export PATH="$JAVA_HOME/bin:$PATH"
 
-OUTPUT_DIR="${WORKING_DIR}/Variants_by_Consequences"
+# Genome information
+GENOME_ID="bHypOws1"
+GENOME_NAME="Guam_rail"
 
-# =========================================================
-# 1. Check required files
-# =========================================================
+GENOME_FASTA="$PROJECT/bHypOws1_hifiasm.bp.p_ctg.fasta"
+GENOME_GFF="$PROJECT/Guam_rail.withExons.gff.gz"
 
-echo "Checking input files..."
+# Input and output files
+INPUT_VCF="$PROJECT/Guam_rail_final_filtered.biallelic.vcf"
+OUTPUT_VCF="$PROJECT/Guam_rail_final_filtered_annotated.vcf.gz"
+REPORT_HTML="$PROJECT/Guam_rail_snpeff_report.html"
 
-if [[ ! -s "$INPUT_VCF" ]]; then
-    echo "ERROR: Input VCF not found or empty:"
-    echo "$INPUT_VCF"
+# ==========================================
+# Step 1: Check Java and required tools
+# ==========================================
+
+echo "Checking Java version..."
+java -version
+
+for tool in bgzip tabix bcftools; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "ERROR: $tool is not available."
+        echo "Load the required module or activate the appropriate environment."
+        exit 1
+    fi
+done
+
+# Check required input files
+for file in \
+    "$SNPEFF/snpEff.jar" \
+    "$SNPEFF/snpEff.config" \
+    "$GENOME_FASTA" \
+    "$GENOME_GFF" \
+    "$INPUT_VCF"; do
+    if [[ ! -s "$file" ]]; then
+        echo "ERROR: Missing or empty file: $file"
+        exit 1
+    fi
+done
+
+# ==========================================
+# Step 2: Prepare database files
+# ==========================================
+
+echo "Preparing Guam rail database files..."
+
+mkdir -p "$SNPEFF/data/$GENOME_ID"
+
+cp "$GENOME_FASTA" "$SNPEFF/data/$GENOME_ID/sequences.fa"
+
+gunzip -c "$GENOME_GFF" \
+    > "$SNPEFF/data/$GENOME_ID/genes.gff"
+
+# Register genome ID only if absent
+if ! grep -q "^${GENOME_ID}\.genome[[:space:]]*:" \
+    "$SNPEFF/snpEff.config"; then
+    echo "${GENOME_ID}.genome : ${GENOME_NAME}" \
+        >> "$SNPEFF/snpEff.config"
+fi
+
+# ==========================================
+# Step 3: Build the SnpEff database
+# ==========================================
+
+cd "$SNPEFF"
+
+echo "Building SnpEff database for Guam rail..."
+
+java -Xmx70g -jar snpEff.jar build \
+    -gff3 \
+    -v \
+    "$GENOME_ID"
+
+# Stop if the expected database was not created
+if [[ ! -s "$SNPEFF/data/$GENOME_ID/snpEffectPredictor.bin" ]]; then
+    echo "ERROR: SnpEff database file was not created."
+    echo "Check the build output before proceeding to annotation."
     exit 1
 fi
 
-if [[ ! -s "$SNPSIFT_JAR" ]]; then
-    echo "ERROR: SnpSift.jar not found:"
-    echo "$SNPSIFT_JAR"
-    exit 1
-fi
+echo "Database build completed successfully."
 
-if [[ ! -x "$JAVA_EXEC" ]]; then
-    echo "ERROR: Java executable not found:"
-    echo "$JAVA_EXEC"
-    exit 1
-fi
+# ==========================================
+# Step 4: Annotate the variants
+# ==========================================
 
-# =========================================================
-# 2. Create separate folders for each consequence category
-# =========================================================
+echo "Annotating Guam rail variants..."
 
-mkdir -p \
-    "$OUTPUT_DIR/Missense" \
-    "$OUTPUT_DIR/Synonymous" \
-    "$OUTPUT_DIR/LoF_and_Splicing" \
-    "$OUTPUT_DIR/Intergenic"
-
-echo "Output folders created."
-
-# =========================================================
-# 3. Extract missense variants
-# =========================================================
-
-echo "Extracting missense variants..."
-
-"$JAVA_EXEC" -jar "$SNPSIFT_JAR" filter \
-    "ANN[*].EFFECT has 'missense_variant'" \
+java -Xmx32g -jar snpEff.jar ann \
+    -v \
+    -stats "$REPORT_HTML" \
+    "$GENOME_ID" \
     "$INPUT_VCF" \
-    > "$OUTPUT_DIR/Missense/Guam_rail_missense.vcf"
+    | bgzip -c > "$OUTPUT_VCF"
 
-# =========================================================
-# 4. Extract synonymous variants
-# =========================================================
+# ==========================================
+# Step 5: Index the annotated VCF
+# ==========================================
 
-echo "Extracting synonymous variants..."
+echo "Indexing annotated VCF..."
 
-"$JAVA_EXEC" -jar "$SNPSIFT_JAR" filter \
-    "ANN[*].EFFECT has 'synonymous_variant'" \
-    "$INPUT_VCF" \
-    > "$OUTPUT_DIR/Synonymous/Guam_rail_synonymous.vcf"
+tabix -f -p vcf "$OUTPUT_VCF"
 
-# =========================================================
-# 5. Extract LoF and splice-related variants
-# =========================================================
+# ==========================================
+# Step 6: Verify the output
+# ==========================================
 
-echo "Extracting LoF and splice-related variants..."
+echo "Checking annotated VCF..."
 
-"$JAVA_EXEC" -jar "$SNPSIFT_JAR" filter \
-    "(ANN[*].EFFECT has 'transcript_ablation') | (ANN[*].EFFECT has 'splice_donor_variant') | (ANN[*].EFFECT has 'splice_acceptor_variant') | (ANN[*].EFFECT has 'stop_gained') | (ANN[*].EFFECT has 'frameshift_variant') | (ANN[*].EFFECT has 'inframe_insertion') | (ANN[*].EFFECT has 'inframe_deletion') | (ANN[*].EFFECT has 'splice_region_variant')" \
-    "$INPUT_VCF" \
-    > "$OUTPUT_DIR/LoF_and_Splicing/Guam_rail_lof_splicing.vcf"
+echo "Checking ANN header..."
+bcftools view -h "$OUTPUT_VCF" | grep 'ID=ANN' || true
 
-# =========================================================
-# 6. Extract intergenic variants
-# =========================================================
+echo "Number of variant records:"
+bcftools view -H "$OUTPUT_VCF" | wc -l
 
-echo "Extracting intergenic variants..."
-
-"$JAVA_EXEC" -jar "$SNPSIFT_JAR" filter \
-    "ANN[*].EFFECT has 'intergenic_region'" \
-    "$INPUT_VCF" \
-    > "$OUTPUT_DIR/Intergenic/Guam_rail_intergenic.vcf"
-
-# =========================================================
-# 7. Count and verify output variants
-# =========================================================
-
-count_variants() {
-    awk '!/^#/ {n++} END {print n+0}' "$1"
-}
+echo "First five annotated records:"
+bcftools view -H "$OUTPUT_VCF" | head -5 || true
 
 echo ""
-echo "========================================================="
-echo "GUAM RAIL CONSEQUENCE FILTERING COMPLETE"
-echo "========================================================="
-
-printf "Missense variants:       "
-count_variants "$OUTPUT_DIR/Missense/Guam_rail_missense.vcf"
-
-printf "Synonymous variants:     "
-count_variants "$OUTPUT_DIR/Synonymous/Guam_rail_synonymous.vcf"
-
-printf "LoF/splicing variants:   "
-count_variants "$OUTPUT_DIR/LoF_and_Splicing/Guam_rail_lof_splicing.vcf"
-
-printf "Intergenic variants:     "
-count_variants "$OUTPUT_DIR/Intergenic/Guam_rail_intergenic.vcf"
+echo "Generated files:"
+ls -lh "$OUTPUT_VCF" "$OUTPUT_VCF.tbi" "$REPORT_HTML"
 
 echo ""
-echo "Output directory: $OUTPUT_DIR"
-echo ""
-find "$OUTPUT_DIR" -maxdepth 2 -type f -name '*.vcf' -print
-echo ""
-echo "Done."
+echo "Guam rail annotation workflow finished."
+
 ```
