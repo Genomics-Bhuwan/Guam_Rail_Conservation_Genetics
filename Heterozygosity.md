@@ -48,7 +48,7 @@ for SAMPLE_BAM in "${SAMPLES[@]}"; do
             -dosaf 1 \
             -gl 1 \
             -C 50 \
-            -minQ 20 \
+            -minQ 30 \
             -minmapq 30 \
             -out "${OUTPUT_DIR}/${SAMPLE}.${SCAF}" \
             -r "$SCAF"
