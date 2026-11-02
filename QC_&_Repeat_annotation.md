@@ -683,13 +683,7 @@ p=true i=<REFERENCE_ID> a=NCBI/GCF_XXXX_genomic.gff.gz g=NCBI/GCF_XXXX_genomic.f
 
 
 
-
-
-
-
-
-############################################################
-############################
+```bash
 #!/bin/bash -l
 #SBATCH --job-name=RepeatModeler
 #SBATCH --time=200:00:00
@@ -750,3 +744,4 @@ echo "Database built successfully."
 echo "Running RepeatModeler with 24 threads and LTR pipeline..."
 nohup $REPEATMODEL_PATH/RepeatModeler -database $DB_NAME -pa 24 -LTRStruct >& RepeatModeler_run.log &
 echo "RepeatModeler job started. Logs will be written to RepeatModeler_run.log"
+```
